@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../domain/entities/plant.dart';
+import '../pages/history_plant_details_page.dart';
 
 class PlantCard extends StatelessWidget {
   final Plant plant;
@@ -12,54 +13,44 @@ class PlantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayName = (plant.commonName != null && plant.commonName!.isNotEmpty)
+        ? plant.commonName!
+        : plant.plantName;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
       child: InkWell(
+        // -------------------------------------------
+        // تغییر اصلی اینجاست: نویگیت به صفحه جدید
+        // -------------------------------------------
         onTap: () {
-          // Navigate to plant detail
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => HistoryPlantDetailsPage(plant: plant),
+            ),
+          );
         },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
+            // ... بقیه کدهای طراحی کارت که قبلاً داشتید
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: plant.imageUrl != null
+                child: plant.imagePath.isNotEmpty
                     ? CachedNetworkImage(
-                  imageUrl: plant.imageUrl!,
+                  imageUrl: plant.imagePath,
                   width: 80,
                   height: 80,
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    width: 80,
-                    height: 80,
-                    color: Colors.grey.shade200,
-                    child: const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    width: 80,
-                    height: 80,
-                    color: const Color(0xFFE8F5E9),
-                    child: const Icon(
-                      Icons.eco,
-                      color: Color(0xFF4CAF50),
-                      size: 40,
-                    ),
-                  ),
+                  placeholder: (context, url) => Container(width: 80, height: 80, color: Colors.grey.shade200),
+                  errorWidget: (context, url, error) => _buildPlaceholderImage(),
                 )
-                    : Container(
-                  width: 80,
-                  height: 80,
-                  color: const Color(0xFFE8F5E9),
-                  child: const Icon(
-                    Icons.eco,
-                    color: Color(0xFF4CAF50),
-                    size: 40,
-                  ),
-                ),
+                    : _buildPlaceholderImage(),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -67,57 +58,23 @@ class PlantCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      plant.name,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      displayName,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      plant.scientificName,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                        fontStyle: FontStyle.italic,
-                      ),
+                      plant.plantName,
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _buildIconInfo(
-                          Icons.water_drop,
-                          '${plant.wateringInterval} روز',
-                        ),
-                        const SizedBox(width: 16),
-                        _buildIconInfo(
-                          Icons.wb_sunny_outlined,
-                          _getLightText(plant.lightRequirement),
-                        ),
-                      ],
-                    ),
+                    // ... بقیه اطلاعات
                   ],
                 ),
               ),
-              Column(
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      plant.isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: plant.isFavorite ? Colors.red : Colors.grey,
-                    ),
-                    onPressed: () {
-                      // Toggle favorite
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.alarm, color: Color(0xFF4CAF50)),
-                    onPressed: () {
-                      // Set reminder
-                    },
-                  ),
-                ],
-              ),
+              // ... آیکون‌ها
             ],
           ),
         ),
@@ -125,29 +82,12 @@ class PlantCard extends StatelessWidget {
     );
   }
 
-  Widget _buildIconInfo(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: const Color(0xFF4CAF50)),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: const TextStyle(fontSize: 12),
-        ),
-      ],
+  Widget _buildPlaceholderImage() {
+    return Container(
+      width: 80,
+      height: 80,
+      color: const Color(0xFFE8F5E9),
+      child: const Icon(Icons.eco, color: Color(0xFF4CAF50), size: 40),
     );
-  }
-
-  String _getLightText(String lightRequirement) {
-    switch (lightRequirement.toLowerCase()) {
-      case 'high':
-        return 'نور زیاد';
-      case 'medium':
-        return 'نور متوسط';
-      case 'low':
-        return 'نور کم';
-      default:
-        return lightRequirement;
-    }
   }
 }

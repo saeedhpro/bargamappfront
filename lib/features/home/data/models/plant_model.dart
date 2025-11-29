@@ -2,39 +2,61 @@ import '../../domain/entities/plant.dart';
 
 class PlantModel extends Plant {
   const PlantModel({
-    required super.id,
-    required super.name,
-    required super.scientificName,
-    super.imageUrl,
-    required super.wateringInterval,
-    required super.fertilizerInterval,
-    required super.lightRequirement,
-    super.isFavorite,
-  });
+    required int id,
+    required String imagePath,
+    required String plantName,
+    String? commonName,
+    String? description,
+    Map<String, dynamic> details = const {},
+    required String createdAt,
+  }) : super(
+    // داده‌ها را مستقیماً به کلاس پدر (Plant) پاس می‌دهیم
+    id: id,
+    imagePath: imagePath,
+    plantName: plantName,
+    commonName: commonName,
+    description: description,
+    details: details,
+    createdAt: createdAt,
+  );
 
   factory PlantModel.fromJson(Map<String, dynamic> json) {
     return PlantModel(
-      id: json['id'].toString(),
-      name: json['name'] ?? '',
-      scientificName: json['scientific_name'] ?? '',
-      imageUrl: json['image_url'],
-      wateringInterval: json['watering_interval'] ?? 7,
-      fertilizerInterval: json['fertilizer_interval'] ?? 30,
-      lightRequirement: json['light_requirement'] ?? 'medium',
-      isFavorite: json['is_favorite'] ?? false,
+      id: json['id'] as int,
+      imagePath: json['image_path']?.toString() ?? '',
+      plantName: json['plant_name']?.toString() ?? 'نامشخص',
+      commonName: json['common_name']?.toString(),
+      description: json['description']?.toString(),
+      details: json['details'] != null
+          ? Map<String, dynamic>.from(json['details'])
+          : {},
+      createdAt: json['created_at']?.toString() ?? '',
+    );
+  }
+
+  /// چون از Plant ارث‌بری کرده‌ایم، خود این کلاس هم نوعی Plant است.
+  /// اما اگر نیاز دارید تبدیل صریح انجام دهید تا از شر متدهای اضافه مدل خلاص شوید:
+  Plant toEntity() {
+    return Plant(
+      id: id,
+      imagePath: imagePath,
+      plantName: plantName,
+      commonName: commonName,
+      description: description,
+      details: details,
+      createdAt: createdAt,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'name': name,
-      'scientific_name': scientificName,
-      'image_url': imageUrl,
-      'watering_interval': wateringInterval,
-      'fertilizer_interval': fertilizerInterval,
-      'light_requirement': lightRequirement,
-      'is_favorite': isFavorite,
+      'image_path': imagePath,
+      'plant_name': plantName,
+      'common_name': commonName,
+      'description': description,
+      'details': details,
+      'created_at': createdAt,
     };
   }
 }

@@ -20,11 +20,11 @@ class PlantRepositoryImpl implements PlantRepository {
     try {
       final plants = await remoteDataSource.getAllPlants();
       await localDataSource.cachePlants(plants);
-      return Right(plants);
+      return Right(plants.cast<Plant>());
     } on ServerException catch (e) {
       try {
         final cachedPlants = await localDataSource.getCachedPlants();
-        return Right(cachedPlants);
+        return Right(cachedPlants.cast<Plant>());
       } on CacheException {
         return Left(ServerFailure(e.message));
       }
@@ -39,15 +39,15 @@ class PlantRepositoryImpl implements PlantRepository {
   Future<Either<Failure, List<Plant>>> searchPlants(String query) async {
     try {
       final plants = await remoteDataSource.searchPlants(query);
-      return Right(plants);
+      return Right(plants.cast<Plant>());
     } on ServerException catch (e) {
       try {
         final cachedPlants = await localDataSource.getCachedPlants();
         final filtered = cachedPlants.where((plant) {
-          return plant.name.toLowerCase().contains(query.toLowerCase()) ||
-              plant.scientificName.toLowerCase().contains(query.toLowerCase());
+          return plant.commonName.toString().toLowerCase().contains(query.toLowerCase()) ||
+              plant.plantName.toLowerCase().contains(query.toLowerCase());
         }).toList();
-        return Right(filtered);
+        return Right(filtered.cast<Plant>());
       } on CacheException {
         return Left(ServerFailure(e.message));
       }
@@ -62,12 +62,12 @@ class PlantRepositoryImpl implements PlantRepository {
   Future<Either<Failure, Plant>> getPlantById(String id) async {
     try {
       final plant = await remoteDataSource.getPlantById(id);
-      return Right(plant);
+      return Right(plant as Plant);
     } on ServerException catch (e) {
       try {
         final cachedPlants = await localDataSource.getCachedPlants();
         final plant = cachedPlants.firstWhere((p) => p.id == id);
-        return Right(plant);
+        return Right(plant as Plant);
       } on CacheException {
         return Left(ServerFailure(e.message));
       } catch (e) {
@@ -77,6 +77,21 @@ class PlantRepositoryImpl implements PlantRepository {
       return Left(CacheFailure(e.message));
     } catch (e) {
       return Left(ServerFailure('خطای غیرمنتظره: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<Plant>>> getHistoryPlants({int page = 1, String? search}) async {
+    try {
+      final remotePlants = await remoteDataSource.getHistoryPlants(page: page, search: search);
+
+      final plants = remotePlants.map((model) => model.toEntity()).toList();
+
+      return Right(plants.cast<Plant>());
+    } on ServerException {
+      return const Left(ServerFailure());
+    } catch (e) {
+      return const Left(ServerFailure());
     }
   }
 }

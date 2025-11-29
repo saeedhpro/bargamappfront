@@ -6,6 +6,7 @@ abstract class PlantRemoteDataSource {
   Future<List<PlantModel>> getAllPlants();
   Future<List<PlantModel>> searchPlants(String query);
   Future<PlantModel> getPlantById(String id);
+  Future<List<PlantModel>> getHistoryPlants({int page = 1, String? search});
 }
 
 class PlantRemoteDataSourceImpl implements PlantRemoteDataSource {
@@ -43,6 +44,35 @@ class PlantRemoteDataSourceImpl implements PlantRemoteDataSource {
       return PlantModel.fromJson(response['data'] as Map<String, dynamic>);
     } catch (e) {
       throw ServerException();
+    }
+  }
+
+  @override
+  Future<List<PlantModel>> getHistoryPlants({int page = 1, String? search}) async {
+    final StringBuffer queryString = StringBuffer('?page=$page&limit=20');
+
+    if (search != null && search.isNotEmpty) {
+      queryString.write('&search=$search');
+    }
+
+    try {
+      final response = await httpClient.get('/garden/history${queryString.toString()}');
+
+      List<dynamic> data;
+      if (response is List) {
+        data = response;
+      } else if (response is Map && response.containsKey('data')) {
+        data = response['data'];
+      } else {
+        return [];
+      }
+
+      return data.map((json) => PlantModel.fromJson(json)).toList();
+    } catch (e) {
+      if (e is! AuthException && e is! NetworkException) {
+        throw ServerException();
+      }
+      rethrow;
     }
   }
 }

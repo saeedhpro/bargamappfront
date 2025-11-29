@@ -197,7 +197,7 @@ class ProfilePage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('درباره برگم'),
+        title: const Text('درباره برگام'),
         content: const Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,7 +205,7 @@ class ProfilePage extends StatelessWidget {
             Text('نسخه: 1.0.0'),
             SizedBox(height: 8),
             Text(
-              'برگم یک اپلیکیشن کامل برای مدیریت و مراقبت از گیاهان است.',
+              'برگام یک اپلیکیشن کامل برای مدیریت و مراقبت از گیاهان است.',
               style: TextStyle(fontSize: 14),
             ),
           ],

@@ -107,7 +107,7 @@ class _SplashPageState extends State<SplashPage>
                     ),
                     const SizedBox(height: 32),
                     const Text(
-                      'برگم',
+                      'برگام',
                       style: TextStyle(
                         fontSize: 36,
                         fontWeight: FontWeight.bold,

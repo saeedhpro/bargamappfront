@@ -1,5 +1,6 @@
 import 'package:bargam_app/features/home/data/datasources/tool_local_data_source.dart';
 import 'package:bargam_app/features/home/data/datasources/tool_remote_data_source.dart';
+import 'package:bargam_app/features/home/domain/usecases/get_history_plants.dart';
 import 'package:bargam_app/features/splash/splash_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -97,6 +98,7 @@ void main() async {
             getAllPlants: GetAllPlants(plantRepository),
             searchPlants: SearchPlants(plantRepository),
             getPlantDetails: GetPlantDetails(plantRepository),
+            getHistoryPlants: GetHistoryPlants(plantRepository),
           ),
         ),
 
