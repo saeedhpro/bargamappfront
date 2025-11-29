@@ -1,0 +1,70 @@
+name: bargam_app
+description: Plant care and garden management app
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  provider: ^6.1.1
+
+  # Network
+  http: ^1.1.2
+
+  # Local Storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # Utilities
+  equatable: ^2.0.5
+  dartz: ^0.10.1
+  shared_preferences: ^2.2.2
+  flutter_secure_storage: ^9.0.0
+
+  # UI Components
+  pinput: ^3.0.1
+  flutter_svg: ^2.0.9
+  cached_network_image: ^3.3.0
+  shimmer: ^3.0.0
+
+  # Icons & Images
+  cupertino_icons: ^1.0.6
+  image_picker: ^1.2.1
+
+  # Utils
+  intl: ^0.20.2
+  persian_datetime_picker: ^2.6.0
+  flutter_localization: ^0.3.3
+  animated_bottom_navigation_bar: ^1.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  build_runner: ^2.4.7
+  hive_generator: ^2.0.1
+
+flutter:
+  uses-material-design: false
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/fonts/
+
+  fonts:
+    - family: Vazir
+      fonts:
+        - asset: assets/fonts/vazir.ttf
+        - asset: assets/fonts/vazirbold.ttf
+          weight: 700
+        - asset: assets/fonts/vazirlight.ttf
+          weight: 300
+        - asset: assets/fonts/vazirmedium.ttf
+          weight: 500
+        - asset: assets/fonts/vazirthin.ttf
+          weight: 100
