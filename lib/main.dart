@@ -53,7 +53,7 @@ void main() async {
   // نکته: برای اندروید امولاتور معمولا از 10.0.2.2 استفاده می‌شود
   // اگر روی وب تست می‌کنید 127.0.0.1 درست است
   final httpClient = HttpClient(
-    baseUrl: 'http://127.0.0.1:8000/api/v1',
+    baseUrl: 'http://65.108.27.190:8001/api/v1',
     tokenManager: tokenManager,
   );
 
