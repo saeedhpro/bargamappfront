@@ -5,8 +5,6 @@ import 'package:provider/provider.dart';
 import '../providers/plant_provider.dart';
 import '../widgets/plant_card.dart';
 import '../widgets/search_bar_widget.dart';
-// مدل Plant را ایمپورت کنید (نه مدل دیتابیس، مدل دامین)
-// import '../../domain/entities/plant.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,37 +13,76 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => false;
+
   final ScrollController _scrollController = ScrollController();
+  bool _hasLoadedOnce = false;
 
   @override
   void initState() {
     super.initState();
 
-    // لود اولیه
-    Future.microtask(
-          () => context.read<PlantProvider>().loadPlants(refresh: true),
-    );
+    // ✅ بارگذاری اولیه فقط یک بار
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_hasLoadedOnce) {
+        _loadData();
+        _hasLoadedOnce = true;
+      }
+    });
 
-    // لیسنر برای اسکرول بی نهایت
+    // ✅ Listener برای Pagination
     _scrollController.addListener(_onScroll);
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // ✅ Refresh وقتی به این تب برمی‌گردیم
+    if (mounted && _hasLoadedOnce) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _loadData();
+        }
+      });
+    }
+  }
+
+  Future<void> _loadData() async {
+    final provider = context.read<PlantProvider>();
+    await provider.loadPlants(refresh: true);
+  }
+
+  @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
 
+  // ✅ Pagination با Scroll
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      // اگر به ۲۰۰ پیکسل آخر لیست رسیدیم، صفحه بعد را لود کن
-      context.read<PlantProvider>().loadPlants(); // بدون refresh یعنی صفحه بعد
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      final provider = context.read<PlantProvider>();
+
+      // فقط اگر در حال لود نباشیم و صفحه بعدی موجود باشه
+      if (!provider.isLoadingMore && provider.hasMore) {
+        provider.loadPlants(); // بدون refresh = صفحه بعد
+      }
     }
+  }
+
+  // ✅ Pull-to-Refresh
+  Future<void> _onRefresh() async {
+    await context.read<PlantProvider>().loadPlants(refresh: true);
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.user;
 
@@ -58,7 +95,11 @@ class _HomePageState extends State<HomePage> {
           children: [
             Text(
               user != null ? "کاربر: ${user.phoneNumber}" : "در حال بارگذاری...",
-              style: const TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -90,7 +131,11 @@ class _HomePageState extends State<HomePage> {
                     const CircleAvatar(
                       radius: 24,
                       backgroundColor: Color(0xFFE8F5E9),
-                      child: Icon(Icons.person, color: Color(0xFF4CAF50), size: 28),
+                      child: Icon(
+                        Icons.person,
+                        color: Color(0xFF4CAF50),
+                        size: 28,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -115,7 +160,6 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 20),
                 SearchBarWidget(
                   onChanged: (query) {
-                    // استفاده از متد جدید سرچ
                     context.read<PlantProvider>().searchPlants(query);
                   },
                 ),
@@ -125,17 +169,24 @@ class _HomePageState extends State<HomePage> {
           Expanded(
             child: Consumer<PlantProvider>(
               builder: (context, provider, child) {
-                // فقط در لود اولیه یا رفرش کامل اسپینر اصلی را نشان بده
-                if (provider.status == PlantLoadingStatus.loading && provider.plants.isEmpty) {
+                // لودینگ اولیه
+                if (provider.status == PlantLoadingStatus.loading &&
+                    provider.plants.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (provider.status == PlantLoadingStatus.error && provider.plants.isEmpty) {
+                // خطا در لود اولیه
+                if (provider.status == PlantLoadingStatus.error &&
+                    provider.plants.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline, size: 60, color: Colors.grey),
+                        const Icon(
+                          Icons.error_outline,
+                          size: 60,
+                          color: Colors.grey,
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           provider.errorMessage ?? 'خطایی رخ داده است',
@@ -143,7 +194,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton(
-                          onPressed: () => provider.refreshPlants(),
+                          onPressed: () => provider.loadPlants(refresh: true),
                           child: const Text('تلاش مجدد'),
                         ),
                       ],
@@ -151,32 +202,47 @@ class _HomePageState extends State<HomePage> {
                   );
                 }
 
+                // لیست خالی
                 if (provider.plants.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'گیاهی یافت نشد',
-                      style: TextStyle(color: Colors.grey),
+                  return RefreshIndicator(
+                    onRefresh: _onRefresh,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(height: 200),
+                        Center(
+                          child: Text(
+                            'گیاهی یافت نشد',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 }
 
+                // نمایش لیست با RefreshIndicator و Pagination
                 return RefreshIndicator(
-                  onRefresh: () => provider.refreshPlants(),
+                  onRefresh: _onRefresh,
+                  color: Colors.green,
+                  backgroundColor: Colors.white,
                   child: ListView.builder(
-                    controller: _scrollController, // اتصال کنترلر اسکرول
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
-                    // اگر "دیتای بیشتر" داریم، یک آیتم اضافه برای لودینگ پایین لیست در نظر بگیر
-                    itemCount: provider.plants.length + (provider.isLoadingMore ? 1 : 0),
+                    itemCount: provider.plants.length +
+                        (provider.isLoadingMore ? 1 : 0),
                     itemBuilder: (context, index) {
+                      // ✅ نمایش لودینگ پیجینیشن در انتها
                       if (index == provider.plants.length) {
-                        // نمایش لودینگ در انتهای لیست
                         return const Center(
                           child: Padding(
-                            padding: EdgeInsets.all(16.0),
+                            padding: EdgeInsets.symmetric(vertical: 16.0),
                             child: CircularProgressIndicator(),
                           ),
                         );
                       }
+
                       return PlantCard(plant: provider.plants[index]);
                     },
                   ),
@@ -196,6 +262,7 @@ class _HomePageState extends State<HomePage> {
       final sub = user.subscription!;
       final planName = sub.planTitle;
       String daysLeftText = "";
+
       if (sub.expiresAt != null) {
         try {
           final expiryDate = DateTime.parse(sub.expiresAt!);
@@ -207,6 +274,7 @@ class _HomePageState extends State<HomePage> {
           // ignore
         }
       }
+
       return Row(
         children: [
           Icon(Icons.verified, size: 16, color: Colors.green[700]),

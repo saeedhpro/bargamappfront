@@ -37,10 +37,8 @@ class AuthProvider extends ChangeNotifier {
     final token = await tokenManager.getAccessToken();
     if (token != null) {
       try {
-        // اگر توکن داریم، اطلاعات کاربر را می‌گیریم تا مطمئن شویم توکن معتبر است
         await _fetchCurrentUser();
       } catch (e) {
-        // اگر خطا داد (مثلاً توکن منقضی شده)، کاربر را لاگ‌اوت می‌کنیم
         _status = AuthStatus.unauthenticated;
         notifyListeners();
       }
@@ -51,26 +49,21 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// ارسال کد تایید (OTP)
-  /// خروجی: true اگر موفق بود، false اگر خطا داد
   Future<bool> sendOtp(String phoneNumber) async {
     try {
       _setStatus(AuthStatus.loading);
       _clearError();
 
-      // فراخوانی API بک‌اند
       await httpClient.post(
         '/auth/send-otp',
         body: {'phone_number': phoneNumber},
       );
 
-      // نکته: اگر اینجا خطایی رخ ندهد یعنی وضعیت 200 بوده است
-      // وضعیت را به unauthenticated برمی‌گردانیم تا UI فرم کد را نشان دهد (نه لودینگ)
       _setStatus(AuthStatus.unauthenticated);
       return true;
 
     } catch (e) {
       _setError('خطا در ارسال کد. لطفاً اتصال اینترنت را بررسی کنید.');
-      // اگر هنوز روی لودینگ گیر کرده، آزادش می‌کنیم
       if (_status == AuthStatus.loading) {
         _status = AuthStatus.unauthenticated;
         notifyListeners();
@@ -80,7 +73,6 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// بررسی کد تایید و دریافت توکن
-  /// خروجی: true اگر موفق بود
   Future<bool> verifyOtp(String phoneNumber, String otp) async {
     try {
       _setStatus(AuthStatus.loading);
@@ -94,22 +86,41 @@ class AuthProvider extends ChangeNotifier {
         },
       );
 
-      if (response.containsKey('access_token')) {
-        // ۱. ذخیره توکن‌ها
-        await tokenManager.saveTokens(
-          accessToken: response['access_token'],
-          refreshToken: response['refresh_token'] ?? '',
-        );
+      // بررسی وجود access_token
+      if (!response.containsKey('access_token')) {
+        throw Exception('پاسخ نامعتبر از سرور - توکن موجود نیست');
+      }
 
-        // ۲. دریافت فوری اطلاعات کاربر برای تکمیل لاگین
-        await _fetchCurrentUser();
+      // ذخیره توکن‌ها
+      await tokenManager.saveTokens(
+        accessToken: response['access_token'],
+        refreshToken: response['refresh_token'] ?? '',
+      );
+
+      // ⭐ تغییر کلیدی: ابتدا user را از response بسازیم
+      if (response.containsKey('user')) {
+        _user = User.fromJson(response['user']);
+        _setStatus(AuthStatus.authenticated);
+
+        // بعداً اطلاعات کاربر را به‌روز می‌کنیم (بدون اینکه لاگین به آن وابسته باشد)
+        _fetchCurrentUser().catchError((e) {
+          print('⚠️ Warning: Could not fetch updated user info: $e');
+          // خطا را نادیده می‌گیریم چون user از response داریم
+        });
 
         return true;
       } else {
-        throw Exception('پاسخ نامعتبر از سرور');
+        // اگر user در response نیست، باید حتماً fetch کنیم
+        await _fetchCurrentUser();
+        return true;
       }
 
     } catch (e) {
+      print('❌ verifyOtp error: $e');
+
+      // پاک کردن توکن‌های احتمالاً ذخیره شده
+      await tokenManager.clearTokens();
+
       _setError('کد وارد شده اشتباه است یا منقضی شده.');
       if (_status == AuthStatus.loading) {
         _status = AuthStatus.unauthenticated;
@@ -126,8 +137,17 @@ class AuthProvider extends ChangeNotifier {
       _user = User.fromJson(response);
       _setStatus(AuthStatus.authenticated);
     } catch (e) {
-      print("Error fetching user: $e");
-      throw e; // خطا را به بالا پاس می‌دهیم تا توابع فراخوان مدیریت کنند
+      print("❌ Error fetching user: $e");
+      rethrow;
+    }
+  }
+
+  /// به‌روزرسانی دستی اطلاعات کاربر
+  Future<void> refreshUserData() async {
+    try {
+      await _fetchCurrentUser();
+    } catch (e) {
+      print("⚠️ Could not refresh user data: $e");
     }
   }
 

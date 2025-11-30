@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:convert';
-// import 'dart:io'; // حذف شد: در وب باعث خطا می‌شود
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../error/exceptions.dart';
@@ -10,6 +10,10 @@ class HttpClient {
   final TokenManager tokenManager;
   final http.Client client;
 
+  // تنظیمات timeout
+  static const Duration _defaultTimeout = Duration(seconds: 5);
+  static const Duration _uploadTimeout = Duration(seconds: 10);
+
   HttpClient({
     required this.baseUrl,
     required this.tokenManager,
@@ -19,12 +23,15 @@ class HttpClient {
   Future<dynamic> get(
       String endpoint, {
         Map<String, String>? headers,
+        Duration? timeout,
       }) async {
     return _makeRequest(
-          () async => client.get(
+          () async => client
+          .get(
         Uri.parse('$baseUrl$endpoint'),
         headers: await _buildHeaders(headers),
-      ),
+      )
+          .timeout(timeout ?? _defaultTimeout),
     );
   }
 
@@ -32,26 +39,31 @@ class HttpClient {
       String endpoint, {
         Map<String, dynamic>? body,
         Map<String, String>? headers,
+        Duration? timeout,
       }) async {
     return _makeRequest(
-          () async => client.post(
+          () async => client
+          .post(
         Uri.parse('$baseUrl$endpoint'),
         headers: await _buildHeaders(headers),
         body: body != null ? jsonEncode(body) : null,
-      ),
+      )
+          .timeout(timeout ?? _defaultTimeout),
     );
   }
 
   Future<dynamic> delete(
       String endpoint, {
         Map<String, String>? headers,
+        Duration? timeout,
       }) async {
     return _makeRequest(
-          () async => client.delete(
+          () async => client
+          .delete(
         Uri.parse('$baseUrl$endpoint'),
         headers: await _buildHeaders(headers),
-        body:  null,
-      ),
+      )
+          .timeout(timeout ?? _defaultTimeout),
     );
   }
 
@@ -74,89 +86,158 @@ class HttpClient {
   }
 
   Future<dynamic> _makeRequest(
-      Future<http.Response> Function() request,
-      ) async {
+      Future<http.Response> Function() request, {
+        int retryCount = 0,
+        int maxRetries = 2,
+      }) async {
     try {
       var response = await request();
 
+      // مدیریت 401 (Unauthorized)
       if (response.statusCode == 401) {
+        print('🔄 Token expired, attempting refresh...');
         final refreshed = await _refreshToken();
+
         if (refreshed) {
+          print('✅ Token refreshed successfully');
           response = await request();
         } else {
-          throw AuthException('Token refresh failed');
+          print('❌ Token refresh failed');
+          await tokenManager.clearTokens();
+          throw AuthException('Authentication failed - please login again');
         }
       }
 
       return _handleResponse(response);
+
+    } on TimeoutException catch (e) {
+      print('⏱️ Request timeout: $e');
+
+      // اگر هنوز retry باقی مانده، دوباره تلاش کن
+      if (retryCount < maxRetries) {
+        print('🔄 Retrying... (${retryCount + 1}/$maxRetries)');
+        await Future.delayed(Duration(seconds: 1 * (retryCount + 1)));
+        return _makeRequest(request, retryCount: retryCount + 1, maxRetries: maxRetries);
+      }
+
+      throw NetworkException('درخواست طولانی شد. لطفاً دوباره تلاش کنید.');
+
     } catch (e) {
-      if (e is AuthException) {
+      if (e is AuthException || e is ValidationException || e is ServerException) {
         rethrow;
       }
-      throw NetworkException('Network error: $e');
+
+      print('❌ Network error: $e');
+
+      // در صورت خطای شبکه، retry کن
+      if (retryCount < maxRetries) {
+        print('🔄 Retrying after network error... (${retryCount + 1}/$maxRetries)');
+        await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
+        return _makeRequest(request, retryCount: retryCount + 1, maxRetries: maxRetries);
+      }
+
+      throw NetworkException('خطا در ارتباط با سرور: ${e.toString()}');
     }
   }
 
   Future<bool> _refreshToken() async {
     try {
       final refreshToken = await tokenManager.getRefreshToken();
-      if (refreshToken == null) return false;
-      final response = await client.post(
+      if (refreshToken == null) {
+        print('⚠️ No refresh token available');
+        return false;
+      }
+
+      print('📤 Sending refresh token request...');
+      final response = await client
+          .post(
         Uri.parse('$baseUrl/auth/refresh'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refresh_token': refreshToken}),
-      );
+      )
+          .timeout(_defaultTimeout);
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         await tokenManager.saveTokens(
           accessToken: data['access_token'],
-          refreshToken: data['refresh_token'],
+          refreshToken: data['refresh_token'] ?? refreshToken,
         );
+        print('✅ Tokens refreshed and saved');
         return true;
       }
+
+      print('❌ Refresh failed with status: ${response.statusCode}');
       return false;
+
     } catch (e) {
+      print('❌ Error refreshing token: $e');
       return false;
     }
   }
 
   dynamic _handleResponse(http.Response response) {
+    print('📥 Response status: ${response.statusCode}');
+
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) {
         return {'success': true};
       }
-      return jsonDecode(utf8.decode(response.bodyBytes));
+
+      try {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        print('✅ Response decoded successfully');
+        return decoded;
+      } catch (e) {
+        print('⚠️ Failed to decode response: $e');
+        throw ServerException('Invalid response format');
+      }
     }
+
+    // مدیریت خطاها
+    String errorMessage = 'Unknown error';
+    try {
+      final errorBody = jsonDecode(utf8.decode(response.bodyBytes));
+      errorMessage = errorBody['detail'] ?? errorBody['message'] ?? errorMessage;
+    } catch (e) {
+      errorMessage = response.body;
+    }
+
+    print('❌ Request failed: $errorMessage');
+
     switch (response.statusCode) {
-      case 400: throw ValidationException('Bad request: ${response.body}');
-      case 401: throw AuthException('Unauthorized');
-      case 403: throw AuthException('Forbidden');
-      case 404: throw ServerException('Resource not found');
-      default: throw ServerException('Server error: ${response.statusCode}');
+      case 400:
+        throw ValidationException('Bad request: $errorMessage');
+      case 401:
+        throw AuthException('Unauthorized: $errorMessage');
+      case 403:
+        throw AuthException('Forbidden: $errorMessage');
+      case 404:
+        throw ServerException('Resource not found: $errorMessage');
+      case 500:
+      case 502:
+      case 503:
+        throw ServerException('Server error: $errorMessage');
+      default:
+        throw ServerException('Error ${response.statusCode}: $errorMessage');
     }
   }
 
-  // --- اصلاح شده: شامل منطق Refresh Token و سازگار با وب ---
   Future<dynamic> uploadPhoto(
       String endpoint, {
         required XFile file,
         required String fieldName,
       }) async {
-
-    // ۱. آماده‌سازی اولیه
     final uri = Uri.parse('$baseUrl$endpoint');
-    final bytes = await file.readAsBytes(); // خواندن بایت‌ها (فقط یک بار)
+    final bytes = await file.readAsBytes();
 
-    // تابع کمکی برای ساخت ریکوئست (چون در صورت رفرش توکن باید دوباره ساخته شود)
     Future<http.Response> sendMultipartRequest() async {
       final request = http.MultipartRequest('POST', uri);
 
-      // گرفتن هدر جدید (شامل توکن احتمالا جدید)
       final headers = await _buildHeaders(null);
       headers.remove('Content-Type');
       request.headers.addAll(headers);
 
-      // افزودن فایل از روی بایت‌های خوانده شده
       final multipartFile = http.MultipartFile.fromBytes(
         fieldName,
         bytes,
@@ -164,19 +245,18 @@ class HttpClient {
       );
       request.files.add(multipartFile);
 
-      final streamedResponse = await request.send();
+      print('📤 Uploading file: ${file.name}');
+      final streamedResponse = await request.send().timeout(_uploadTimeout);
       return await http.Response.fromStream(streamedResponse);
     }
 
     try {
-      // ۲. تلاش اول
       var response = await sendMultipartRequest();
 
-      // ۳. بررسی ۴۰۱ و تلاش برای رفرش توکن
       if (response.statusCode == 401) {
+        print('🔄 Upload unauthorized, refreshing token...');
         final refreshed = await _refreshToken();
         if (refreshed) {
-          // اگر رفرش موفق بود، دوباره ریکوئست را می‌سازیم و می‌فرستیم
           response = await sendMultipartRequest();
         } else {
           throw AuthException('Unauthorized');
@@ -185,8 +265,10 @@ class HttpClient {
 
       return _handleResponse(response);
 
+    } on TimeoutException {
+      throw NetworkException('آپلود فایل طولانیفاً دوباره تلاش کنید.');
     } catch (e) {
-      if (e is AuthException) rethrow;
+      if (e is AuthException || e is NetworkException) rethrow;
       throw NetworkException('Error uploading photo: $e');
     }
   }

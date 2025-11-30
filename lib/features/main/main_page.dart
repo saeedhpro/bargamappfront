@@ -1,12 +1,17 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.dart';
 
 import '../home/presentation/pages/home_page.dart';
 import '../tools/presentation/pages/tools_page.dart';
+import '../tools/presentation/pages/plant_identification_page.dart';
+import '../tools/presentation/providers/tool_provider.dart';
 import '../garden/presentation/pages/garden_page.dart';
 import '../profile/presentation/pages/profile_page.dart';
+import '../auth/presentation/providers/auth_provider.dart';
+import '../tools/presentation/widgets/subscription_bottom_sheet.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -17,9 +22,7 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int _currentIndex = 0;
-
-  final _picker = ImagePicker();
-  XFile? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
 
   final _pages = const [
     HomePage(),
@@ -49,15 +52,13 @@ class _MainPageState extends State<MainPage> {
         index: _currentIndex,
         children: _pages,
       ),
-
       floatingActionButton: FloatingActionButton(
         heroTag: 'camera_selector_button',
-        onPressed: _showCameraOptions,
+        onPressed: _onCameraButtonPressed,
         backgroundColor: const Color(0xFF4CAF50),
         child: const Icon(Icons.photo_camera, color: Colors.white),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-
       bottomNavigationBar: AnimatedBottomNavigationBar.builder(
         itemCount: _icons.length,
         tabBuilder: (int index, bool isActive) {
@@ -79,7 +80,6 @@ class _MainPageState extends State<MainPage> {
             ],
           );
         },
-
         activeIndex: _currentIndex,
         gapLocation: GapLocation.center,
         notchSmoothness: NotchSmoothness.smoothEdge,
@@ -90,14 +90,44 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // CAMERA OR GALLERY BOTTOM SHEET
-  void _showCameraOptions() {
+  // ===== هندل کلیک روی دکمه دوربین =====
+  void _onCameraButtonPressed() {
+    final user = context.read<AuthProvider>().user;
+    int remainingLimit = 0;
+
+    try {
+      if (user != null && user.subscription != null) {
+        remainingLimit = user.subscription!.frozenDailyPlantIdLimit;
+      }
+    } catch (e) {
+      debugPrint("Error reading subscription: $e");
+      remainingLimit = 0;
+    }
+
+    bool hasAccess = remainingLimit > 0;
+
+    if (hasAccess) {
+      // اگر لیمیت دارد، نمایش انتخاب دوربین/گالری
+      _showImageSourceOptions();
+    } else {
+      // اگر لیمیت ندارد، نمایش پنجره خرید اشتراک
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (context) => const SubscriptionBottomSheet(),
+      );
+    }
+  }
+
+  // ===== نمایش BottomSheet انتخاب دوربین یا گالری =====
+  void _showImageSourceOptions() {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
+      builder: (ctx) => Container(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -105,17 +135,17 @@ class _MainPageState extends State<MainPage> {
             ListTile(
               leading: const Icon(Icons.camera_alt, color: Color(0xFF4CAF50)),
               title: const Text('دوربین'),
-              onTap: () async {
-                Navigator.pop(context);
-                await _pickFromCamera();
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.camera);
               },
             ),
             ListTile(
               leading: const Icon(Icons.photo_library, color: Color(0xFF4CAF50)),
               title: const Text('گالری'),
-              onTap: () async {
-                Navigator.pop(context);
-                await _pickFromGallery();
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.gallery);
               },
             ),
           ],
@@ -124,42 +154,36 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // PICK IMAGE FROM CAMERA
-  Future<void> _pickFromCamera() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.camera);
+  // ===== انتخاب عکس و رفتن به صفحه شناسایی =====
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        imageQuality: 80,
+      );
 
-    if (image != null) {
-      setState(() => _selectedImage = image);
-      _previewImage(image);
-    }
-  }
+      if (image != null) {
+        if (!mounted) return;
 
-  // PICK IMAGE FROM GALLERY
-  Future<void> _pickFromGallery() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-
-    if (image != null) {
-      setState(() => _selectedImage = image);
-      _previewImage(image);
-    }
-  }
-
-  // SHOW PREVIEW DIALOG
-  void _previewImage(XFile file) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("عکس انتخاب‌شده"),
-          content: Image.network(file.path), // For web support
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("باشه"),
-            )
-          ],
+        // رفتن به صفحه لودینگ و شناسایی
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PlantIdentificationPage(imageFile: image),
+          ),
         );
-      },
-    );
+      }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در انتخاب عکس: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

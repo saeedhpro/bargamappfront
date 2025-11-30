@@ -108,27 +108,40 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _localLoading = true);
 
-    final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.verifyOtp(_phoneController.text, otp);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    if (!mounted) return;
-    setState(() => _localLoading = false);
+    try {
+      final success = await authProvider.verifyOtp(_phoneController.text, otp);
 
-    if (success) {
-      // انتقال به صفحه اصلی و حذف صفحه لاگین از پشته (Stack)
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainPage()),
-      );
-    } else {
+      if (!mounted) return;
+      setState(() => _localLoading = false);
+
+      if (success) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MainPage()),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(authProvider.errorMessage ?? 'کد وارد شده صحیح نیست'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        _otpController.clear();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _localLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authProvider.errorMessage ?? 'کد وارد شده صحیح نیست'),
+          content: Text('خطا: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
-      _otpController.clear(); // پاک کردن کد اشتباه
     }
   }
+
 
   // --- بازگشت به مرحله قبل (تغییر شماره) ---
   void _changeNumber() {
