@@ -47,7 +47,7 @@ void main() async {
   await Hive.openBox('tools');
 
   // Initialize core dependencies
-  final tokenManager = TokenManager();
+  final tokenManager = await TokenManager.create();
 
   // تنظیم Base URL
   // نکته: برای اندروید امولاتور معمولا از 10.0.2.2 استفاده می‌شود
