@@ -1,3 +1,4 @@
+import 'package:bargam_app/features/auth/presentation/pages/login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -232,9 +233,22 @@ class ProfilePage extends StatelessWidget {
             child: const Text('انصراف'),
           ),
           TextButton(
-            onPressed: () {
-              context.read<AuthProvider>().logout();
+            onPressed: () async {
+              // بستن دیالوگ
               Navigator.pop(context);
+
+              // اجرای logout
+              await context.read<AuthProvider>().logout();
+
+              // هدایت به صفحه ورود و پاک کردن تمام مسیرهای قبلی
+              if (context.mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => const LoginPage(),
+                  ),
+                      (route) => false,
+                );
+              }
             },
             child: const Text('خروج', style: TextStyle(color: Colors.red)),
           ),
@@ -242,6 +256,7 @@ class ProfilePage extends StatelessWidget {
       ),
     );
   }
+
 }
 
 class _MenuItem {
