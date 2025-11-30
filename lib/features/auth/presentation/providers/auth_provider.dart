@@ -78,6 +78,8 @@ class AuthProvider extends ChangeNotifier {
       _setStatus(AuthStatus.loading);
       _clearError();
 
+      print('📤 Sending OTP verification request...');
+
       final response = await httpClient.post(
         '/auth/verify-otp',
         body: {
@@ -86,42 +88,68 @@ class AuthProvider extends ChangeNotifier {
         },
       );
 
-      // بررسی وجود access_token
-      if (!response.containsKey('access_token')) {
-        throw Exception('پاسخ نامعتبر از سرور - توکن موجود نیست');
+      print('📥 Response received: $response');
+      print('🔍 Response type: ${response.runtimeType}');
+
+      // ✅ بررسی دقیق‌تر
+      if (response is! Map<String, dynamic>) {
+        throw Exception('Invalid response format: expected Map but got ${response.runtimeType}');
       }
 
+      // چک access_token
+      final accessToken = response['access_token'];
+      if (accessToken == null) {
+        print('❌ access_token is null in response');
+        throw Exception('توکن در پاسخ سرور یافت نشد');
+      }
+
+      print('✅ Access token found: ${accessToken.toString().substring(0, 20)}...');
+
+      final refreshToken = response['refresh_token'] ?? '';
+
       // ذخیره توکن‌ها
+      print('💾 Saving tokens...');
       await tokenManager.saveTokens(
-        accessToken: response['access_token'],
-        refreshToken: response['refresh_token'] ?? '',
+        accessToken: accessToken as String,
+        refreshToken: refreshToken as String,
       );
+      print('✅ Tokens saved successfully');
 
-      // ⭐ تغییر کلیدی: ابتدا user را از response بسازیم
-      if (response.containsKey('user')) {
-        _user = User.fromJson(response['user']);
-        _setStatus(AuthStatus.authenticated);
+      // پردازش user
+      if (response.containsKey('user') && response['user'] != null) {
+        print('👤 Processing user data...');
+        print('🔍 User data: ${response['user']}');
 
-        // بعداً اطلاعات کاربر را به‌روز می‌کنیم (بدون اینکه لاگین به آن وابسته باشد)
+        try {
+          _user = User.fromJson(response['user'] as Map<String, dynamic>);
+          print('✅ User parsed successfully: ${_user?.phoneNumber}');
+          _setStatus(AuthStatus.authenticated);
+        } catch (e, st) {
+          print('❌ Error parsing user: $e');
+          print('📍 Stack trace: $st');
+          rethrow; // این خطا رو بفرست بالا
+        }
+
+        // بعداً اطلاعات رو آپدیت کن
         _fetchCurrentUser().catchError((e) {
-          print('⚠️ Warning: Could not fetch updated user info: $e');
-          // خطا را نادیده می‌گیریم چون user از response داریم
+          print('⚠️ Could not fetch updated user: $e');
         });
 
         return true;
       } else {
-        // اگر user در response نیست، باید حتماً fetch کنیم
+        print('⚠️ User not in response, fetching from /users/me...');
         await _fetchCurrentUser();
         return true;
       }
 
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ verifyOtp error: $e');
+      print('📍 Full stack trace:');
+      print(stackTrace);
 
-      // پاک کردن توکن‌های احتمالاً ذخیره شده
       await tokenManager.clearTokens();
 
-      _setError('کد وارد شده اشتباه است یا منقضی شده.');
+      _setError('کد وارد شده اشتباه است یا منقضی شده. جزئیات: $e');
       if (_status == AuthStatus.loading) {
         _status = AuthStatus.unauthenticated;
         notifyListeners();
@@ -129,6 +157,7 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
   }
+
 
   /// دریافت اطلاعات پروفایل کاربر (Me)
   Future<void> _fetchCurrentUser() async {
