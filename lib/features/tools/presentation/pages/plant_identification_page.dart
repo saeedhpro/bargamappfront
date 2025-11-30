@@ -53,10 +53,7 @@ class _PlantIdentificationPageState extends State<PlantIdentificationPage> {
     } catch (e) {
       if (!mounted) return;
       if (e is AuthException) {
-        await authProvider.logout();
-        if (mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-        }
+        Navigator.of(context).pop();
       } else {
         setState(() {
           _error = e.toString();
