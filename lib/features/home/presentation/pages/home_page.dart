@@ -2,6 +2,7 @@ import 'package:bargam_app/features/auth/presentation/providers/auth_provider.da
 import 'package:bargam_app/features/tools/presentation/widgets/support_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async'; // ✅ اضافه کن
 import '../providers/plant_provider.dart';
 import '../widgets/plant_card.dart';
 import '../widgets/search_bar_widget.dart';
@@ -20,11 +21,13 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
   final ScrollController _scrollController = ScrollController();
   bool _hasLoadedOnce = false;
 
+  // ✅ برای Debounce
+  Timer? _debounceTimer;
+
   @override
   void initState() {
     super.initState();
 
-    // ✅ بارگذاری اولیه فقط یک بار
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_hasLoadedOnce) {
         _loadData();
@@ -32,7 +35,6 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
       }
     });
 
-    // ✅ Listener برای Pagination
     _scrollController.addListener(_onScroll);
   }
 
@@ -40,7 +42,6 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // ✅ Refresh وقتی به این تب برمی‌گردیم
     if (mounted && _hasLoadedOnce) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -59,25 +60,38 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _debounceTimer?.cancel(); // ✅ کنسل کردن تایمر
     super.dispose();
   }
 
-  // ✅ Pagination با Scroll
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
       final provider = context.read<PlantProvider>();
 
-      // فقط اگر در حال لود نباشیم و صفحه بعدی موجود باشه
       if (!provider.isLoadingMore && provider.hasMore) {
-        provider.loadPlants(); // بدون refresh = صفحه بعد
+        provider.loadPlants();
       }
     }
   }
 
-  // ✅ Pull-to-Refresh
   Future<void> _onRefresh() async {
     await context.read<PlantProvider>().loadPlants(refresh: true);
+  }
+
+  // ✅ متد برای سرچ با Debounce
+  void _onSearchChanged(String query) {
+    // اگر تایمر قبلی داریم، کنسلش کن
+    _debounceTimer?.cancel();
+
+    // تایمر جدید بساز که بعد از 500 میلی‌ثانیه اجرا شه
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      if (query.isEmpty) {
+        context.read<PlantProvider>().clearSearch();
+      } else {
+        context.read<PlantProvider>().searchPlantsWithQuery(query);
+      }
+    });
   }
 
   @override
@@ -159,13 +173,7 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
                 ),
                 const SizedBox(height: 20),
                 SearchBarWidget(
-                  onChanged: (query) {
-                    if (query.isEmpty) {
-                      context.read<PlantProvider>().clearSearch();
-                    } else {
-                      context.read<PlantProvider>().searchPlantsWithQuery(query);
-                    }
-                  },
+                  onChanged: _onSearchChanged, // ✅ استفاده از متد جدید
                 ),
               ],
             ),
@@ -173,13 +181,11 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
           Expanded(
             child: Consumer<PlantProvider>(
               builder: (context, provider, child) {
-                // لودینگ اولیه
                 if (provider.status == PlantLoadingStatus.loading &&
                     provider.plants.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                // خطا در لود اولیه
                 if (provider.status == PlantLoadingStatus.error &&
                     provider.plants.isEmpty) {
                   return Center(
@@ -206,7 +212,6 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
                   );
                 }
 
-                // لیست خالی
                 if (provider.plants.isEmpty) {
                   return RefreshIndicator(
                     onRefresh: _onRefresh,
@@ -225,7 +230,6 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
                   );
                 }
 
-                // نمایش لیست با RefreshIndicator و Pagination
                 return RefreshIndicator(
                   onRefresh: _onRefresh,
                   color: Colors.green,
@@ -237,7 +241,6 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
                     itemCount: provider.plants.length +
                         (provider.isLoadingMore ? 1 : 0),
                     itemBuilder: (context, index) {
-                      // ✅ نمایش لودینگ پیجینیشن در انتها
                       if (index == provider.plants.length) {
                         return const Center(
                           child: Padding(
