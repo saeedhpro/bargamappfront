@@ -21,16 +21,12 @@ class PlantProvider extends ChangeNotifier {
   });
 
   PlantLoadingStatus _status = PlantLoadingStatus.initial;
-
   final List<Plant> _plants = [];
-
   String? _errorMessage;
-
   String _searchQuery = '';
   int _page = 1;
   bool _hasMore = true;
   bool _isLoadingMore = false;
-
   Plant? _selectedPlant;
 
   // Getters
@@ -40,6 +36,7 @@ class PlantProvider extends ChangeNotifier {
   Plant? get selectedPlant => _selectedPlant;
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
+  String get searchQuery => _searchQuery;
 
   Future<void> loadPlants({bool refresh = false}) async {
     if (refresh) {
@@ -82,13 +79,45 @@ class PlantProvider extends ChangeNotifier {
     );
   }
 
+  // ✅ متد جدید برای سرچ
+  Future<void> searchPlantsWithQuery(String query) async {
+    _searchQuery = query;
+    _page = 1;
+    _hasMore = true;
+    _plants.clear();
+    _status = PlantLoadingStatus.loading;
+    notifyListeners();
+
+    final result = await getHistoryPlants(page: _page, search: _searchQuery);
+
+    result.fold(
+          (failure) {
+        _status = PlantLoadingStatus.error;
+        _errorMessage = failure.message;
+        notifyListeners();
+      },
+          (newPlants) {
+        _plants.addAll(newPlants);
+        if (newPlants.isEmpty || newPlants.length < 20) {
+          _hasMore = false;
+        } else {
+          _page++;
+        }
+        _status = PlantLoadingStatus.loaded;
+        _errorMessage = null;
+        notifyListeners();
+      },
+    );
+  }
+
+  // ✅ پاک کردن سرچ
+  void clearSearch() {
+    _searchQuery = '';
+    loadPlants(refresh: true);
+  }
+
   // --- متد جزئیات ---
   Future<void> loadPlantDetails(String plantId) async {
-    // برای جزئیات شاید بهتر باشد status جداگانه یا متغیر loading جداگانه داشته باشید
-    // تا لیست اصلی پاک نشود. اما فعلاً طبق کد شما:
-    // _status = PlantLoadingStatus.loading; // این خط باعث لودینگ کل صفحه می‌شود!
-    // notifyListeners();
-
     final result = await getPlantDetails(plantId);
     result.fold(
           (failure) {
@@ -108,7 +137,6 @@ class PlantProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // برای دکمه تلاش مجدد
   Future<void> refreshPlants() async {
     await loadPlants(refresh: true);
   }

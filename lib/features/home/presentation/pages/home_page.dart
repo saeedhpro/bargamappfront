@@ -160,7 +160,11 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
                 const SizedBox(height: 20),
                 SearchBarWidget(
                   onChanged: (query) {
-                    context.read<PlantProvider>().getHistoryPlants(page: 1, search: query);
+                    if (query.isEmpty) {
+                      context.read<PlantProvider>().clearSearch();
+                    } else {
+                      context.read<PlantProvider>().searchPlantsWithQuery(query);
+                    }
                   },
                 ),
               ],
