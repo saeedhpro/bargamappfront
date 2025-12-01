@@ -4,11 +4,13 @@ import '../../domain/entities/tool.dart';
 class ToolCard extends StatelessWidget {
   final Tool tool;
   final VoidCallback onTap;
+  final int remainingLimit; // ✅ اضافه شد
 
   const ToolCard({
     super.key,
     required this.tool,
     required this.onTap,
+    required this.remainingLimit, // ✅ اضافه شد
   });
 
   @override
@@ -18,7 +20,6 @@ class ToolCard extends StatelessWidget {
     final iconData = _getIconData(tool.iconName);
 
     return Directionality(
-      // اطمینان از اینکه کارت حتما راست‌چین رندر شود
       textDirection: TextDirection.rtl,
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),
@@ -35,18 +36,15 @@ class ToolCard extends StatelessWidget {
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, // در RTL یعنی سمت راست
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // 1. سمت راست: آیکون و تیتر
                 Row(
                   children: [
-                    // آیکون (اولین آیتم از راست)
                     Icon(iconData, color: colorTheme, size: 32),
                     const SizedBox(width: 10),
-                    // متن (دومین آیتم از راست)
                     Text(
                       tool.title,
                       style: const TextStyle(
@@ -58,18 +56,24 @@ class ToolCard extends StatelessWidget {
                   ],
                 ),
 
-                // 2. سمت چپ: بج (Badge)
+                // ✅ نمایش تعداد فرصت باقی‌مانده
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    border: Border.all(color: colorTheme.withOpacity(0.5)),
+                    border: Border.all(
+                      color: remainingLimit > 0
+                          ? colorTheme.withOpacity(0.5)
+                          : Colors.red.withOpacity(0.5),
+                    ),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    'یک فرصت رایگان',
+                    remainingLimit > 0
+                        ? '$remainingLimit فرصت باقی‌مانده'
+                        : 'بدون فرصت',
                     style: TextStyle(
-                      color: colorTheme,
-                      fontSize: 11, // فونت کمی ریزتر برای جا شدن
+                      color: remainingLimit > 0 ? colorTheme : Colors.red,
+                      fontSize: 11,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -78,22 +82,20 @@ class ToolCard extends StatelessWidget {
             ),
             const SizedBox(height: 15),
 
-            // توضیحات
             Text(
               tool.description,
-              textAlign: TextAlign.right, // متن راست‌چین
+              textAlign: TextAlign.right,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: Colors.grey[600],
                 fontSize: 14,
-                height: 1.6, // فاصله خطوط بهتر برای فارسی
+                height: 1.6,
               ),
             ),
 
             const SizedBox(height: 20),
 
-            // دکمه
             SizedBox(
               width: double.infinity,
               height: 48,
