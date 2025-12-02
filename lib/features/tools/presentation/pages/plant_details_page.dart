@@ -88,6 +88,7 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
 
     final difficulty = widget.data['difficulty'] ?? 'نامشخص';
     final waterDetail = widget.data['water_detail'] ?? description;
+    final nameFa = widget.data['name_fa'] ?? commonName;
     final lightDetail = widget.data['light_detail'] ?? 'اطلاعات دقیق موجود نیست';
     final fertilizer = widget.data['fertilizer'] ?? 'کود عمومی';
 
@@ -131,7 +132,7 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
                   children: [
                     Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2))),
                     const SizedBox(height: 20),
-                    Text(commonName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                    Text(nameFa, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                     const SizedBox(height: 8),
                     Text(scientificName, style: TextStyle(fontSize: 16, color: Colors.grey[600], fontStyle: FontStyle.italic), textAlign: TextAlign.center),
                     const SizedBox(height: 30),

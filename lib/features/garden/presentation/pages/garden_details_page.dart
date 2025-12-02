@@ -31,6 +31,7 @@ class _GardenDetailsPageState extends State<GardenDetailsPage> {
     final tempShort = details['temp'] ?? 'نامشخص';
     final difficulty = details['difficulty'] ?? 'نامشخص';
     final waterDetail = details['water_detail'] ?? description;
+    final nameFa = details['name_fa'] ?? commonName;
     final lightDetail = details['light_detail'] ?? 'اطلاعات دقیق موجود نیست';
     final fertilizer = details['fertilizer'] ?? 'کود عمومی';
 
@@ -79,7 +80,7 @@ class _GardenDetailsPageState extends State<GardenDetailsPage> {
                     const SizedBox(height: 20),
 
                     // نام‌ها
-                    Text(commonName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                    Text(nameFa, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                     const SizedBox(height: 8),
                     Text(scientificName, style: TextStyle(fontSize: 16, color: Colors.grey[600], fontStyle: FontStyle.italic), textAlign: TextAlign.center),
                     const SizedBox(height: 30),

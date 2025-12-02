@@ -70,6 +70,7 @@ class _HistoryPlantDetailsPageState extends State<HistoryPlantDetailsPage> {
     final tempShort = details['temp'] ?? 'نامشخص';
     final difficulty = details['difficulty'] ?? 'نامشخص';
     final waterDetail = details['water_detail'] ?? description;
+    final nameFa = details['name_fa'] ?? commonName;
     final lightDetail = details['light_detail'] ?? 'اطلاعات دقیق موجود نیست';
     final fertilizer = details['fertilizer'] ?? 'کود عمومی';
 
@@ -137,7 +138,7 @@ class _HistoryPlantDetailsPageState extends State<HistoryPlantDetailsPage> {
 
                     // نام‌ها
                     Text(
-                        commonName,
+                        nameFa,
                         style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center
                     ),

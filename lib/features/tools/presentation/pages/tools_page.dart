@@ -1,12 +1,18 @@
-import 'dart:io';
-import 'dart:typed_data'; // برای کار با بایت‌ها در وب
-import 'package:flutter/foundation.dart'; // برای kIsWeb
+import 'dart:async';
+import 'dart:io' ;
+import 'dart:typed_data';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+
+// Web‑only imports
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 
 import 'package:bargam_app/features/auth/presentation/providers/auth_provider.dart';
 import '../providers/tool_provider.dart';
@@ -33,7 +39,10 @@ class _ToolsPageState extends State<ToolsPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
-        title: const Text('ابزارها', style: TextStyle(color: Color(0xFF2E3E5C), fontWeight: FontWeight.bold)),
+        title: const Text(
+          'ابزارها',
+          style: TextStyle(color: Color(0xFF2E3E5C), fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -41,8 +50,8 @@ class _ToolsPageState extends State<ToolsPage> {
           IconButton(
             icon: const Icon(Icons.headset_mic_outlined, color: Colors.grey),
             onPressed: () => showModalBottomSheet(
-                context: context,
-                builder: (_) => const SupportBottomSheet()
+              context: context,
+              builder: (_) => const SupportBottomSheet(),
             ),
           ),
         ],
@@ -53,6 +62,7 @@ class _ToolsPageState extends State<ToolsPage> {
         itemBuilder: (context, index) {
           final authProvider = context.read<AuthProvider>();
           final tool = tools[index];
+
           return ToolCard(
             tool: tool,
             onTap: () => _handleToolClick(context, tool, user),
@@ -67,11 +77,10 @@ class _ToolsPageState extends State<ToolsPage> {
     int remainingLimit = 0;
 
     try {
-      if (user != null && user.subscription != null) {
+      if (user?.subscription != null) {
         remainingLimit = user.subscription!.frozenDailyPlantIdLimit;
       }
     } catch (e) {
-      debugPrint("Error reading subscription: $e");
       remainingLimit = 0;
     }
 
@@ -87,17 +96,8 @@ class _ToolsPageState extends State<ToolsPage> {
         );
 
         if (result == true) {
-          if (!mounted) return;
           final updatedUser = context.read<AuthProvider>().user;
-
-          int newLimit = 0;
-          try {
-            if (updatedUser != null && updatedUser.subscription != null) {
-              newLimit = updatedUser.subscription!.frozenDailyPlantIdLimit;
-            }
-          } catch (e) {
-            debugPrint("Error reading updated subscription: $e");
-          }
+          int newLimit = updatedUser?.subscription?.frozenDailyPlantIdLimit ?? 0;
 
           if (newLimit > 0) {
             _showImageSourceOptions(context);
@@ -118,7 +118,6 @@ class _ToolsPageState extends State<ToolsPage> {
   }
 
   void _showImageSourceOptions(BuildContext context) {
-    // منطق تشخیص دسکتاپ برای جلوگیری از کرش دوربین
     bool isDesktop = !kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
 
     showModalBottomSheet(
@@ -139,7 +138,7 @@ class _ToolsPageState extends State<ToolsPage> {
                 if (isDesktop) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('دوربین در نسخه دسکتاپ پشتیبانی نمی‌شود. گالری باز می‌شود.'),
+                      content: Text('دوربین در نسخه دسکتاپ پشتیبانی نمی‌شود.'),
                       duration: Duration(seconds: 2),
                     ),
                   );
@@ -164,177 +163,157 @@ class _ToolsPageState extends State<ToolsPage> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
+    debugPrint("===== PICK IMAGE =====");
+
     try {
       final XFile? image = await _picker.pickImage(source: source, imageQuality: 100);
+      if (image == null) return;
 
-      if (image != null) {
-        if (!mounted) return;
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (c) => const Center(child: CircularProgressIndicator()),
-        );
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
 
-        XFile? finalImage;
+      XFile? finalImage;
 
-        if (kIsWeb) {
-          // ---- منطق وب ----
-          final compressedBytes = await _compressImageWeb(image);
-          if (compressedBytes != null) {
-            finalImage = XFile.fromData(
-                compressedBytes,
-                mimeType: 'image/jpeg',
-                name: 'compressed_plant.jpg'
-            );
-          }
-        } else {
-          // ---- منطق موبایل و دسکتاپ ----
-          final File? compressedFile = await _compressImageMobile(File(image.path));
-          if (compressedFile != null) {
-            finalImage = XFile(compressedFile.path);
-          }
+      if (kIsWeb) {
+        Uint8List? compressed = await _compressImageWeb(image);
+        if (compressed != null) {
+          finalImage = XFile.fromData(
+            compressed,
+            mimeType: 'image/jpeg',
+            name: 'plant_web.jpg',
+          );
         }
-
-        if (!mounted) return;
-        Navigator.of(context, rootNavigator: true).pop(); // بستن لودینگ
-
-        if (finalImage != null) {
-          debugPrint(">>> ✅ Final Image Ready in ToolsPage: ${finalImage.path}");
-          if (!mounted) return;
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PlantIdentificationPage(imageFile: finalImage!),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('خطا در پردازش و فشرده‌سازی تصویر')),
-          );
+      } else {
+        File? compressed = await _compressImageMobile(File(image.path));
+        if (compressed != null) {
+          finalImage = XFile(compressed.path);
         }
       }
-    } catch (e) {
-      debugPrint('Error picking/compressing image: $e');
-      if(mounted) {
-        Navigator.of(context, rootNavigator: true).pop(); // اطمینان از بسته شدن لودینگ در صورت خطا
+
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (finalImage == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطا: $e'), backgroundColor: Colors.red),
+          const SnackBar(content: Text("خطا در پردازش تصویر")),
         );
+        return;
       }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PlantIdentificationPage(imageFile: finalImage!),
+        ),
+      );
+
+    } catch (e) {
+      Navigator.of(context, rootNavigator: true).pop();
+      debugPrint("ERROR in _pickImage: $e");
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("خطا: $e")),
+      );
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // تابع اصلاح شده فشرده‌سازی موبایل (دقیقاً مثل MainPage)
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------
+  // MOBILE COMPRESSION
+  // ----------------------------------------------------
   Future<File?> _compressImageMobile(File file) async {
-    const int targetSize = 500 * 1024; // 500 KB
+    const int targetSize = 500 * 1024;
     int quality = 95;
 
-    // 1. چاپ حجم اولیه
-    int originalLength = await file.length();
-    debugPrint("=================================================================");
-    debugPrint(">>> 📸 START (ToolsPage): Processing Image");
-    debugPrint(">>> 📂 Original Path: ${file.path}");
-    debugPrint(">>> 📦 Original Size: ${(originalLength / 1024).toStringAsFixed(2)} KB");
-
     final Directory tempDir = await getTemporaryDirectory();
-    final String targetPath = p.join(tempDir.path, "tools_converted_${DateTime.now().millisecondsSinceEpoch}.jpg");
+    final String targetPath = p.join(
+      tempDir.path,
+      "plant_mobile_${DateTime.now().millisecondsSinceEpoch}.jpg",
+    );
 
     try {
-      // تبدیل اولیه به JPEG
-      var resultXFile = await FlutterImageCompress.compressAndGetFile(
-        file.absolute.path,
+      File? output = (await FlutterImageCompress.compressAndGetFile(
+        file.path,
         targetPath,
         quality: quality,
         format: CompressFormat.jpeg,
-      );
+      )) as File?;
 
-      if (resultXFile == null) {
-        debugPrint(">>> ❌ Conversion failed, returning original.");
-        return file;
-      }
+      if (output == null) return file;
 
-      File compressedFile = File(resultXFile.path);
-      int currentSize = await compressedFile.length();
-      debugPrint(">>> 🔄 Converted to JPEG (Quality $quality). Size: ${(currentSize / 1024).toStringAsFixed(2)} KB");
+      int size = await output.length();
 
-      // حلقه کاهش حجم
-      while (currentSize > targetSize && quality > 10) {
-        quality -= 15;
-        debugPrint(">>> ⚠️ Still too big (> 500KB). Reducing quality to $quality...");
-
-        final String newTargetPath = p.join(tempDir.path, "tools_converted_${DateTime.now().millisecondsSinceEpoch}_$quality.jpg");
-
-        final newResult = await FlutterImageCompress.compressAndGetFile(
-          compressedFile.absolute.path,
-          newTargetPath,
+      while (size > targetSize && quality > 10) {
+        quality -= 10;
+        output = (await FlutterImageCompress.compressAndGetFile(
+          output!.path,
+          targetPath,
           quality: quality,
           format: CompressFormat.jpeg,
-        );
+        )) as File?;
 
-        if (newResult != null) {
-          // پاک کردن فایل موقت قبلی
-          try { await compressedFile.delete(); } catch (_) {}
-
-          compressedFile = File(newResult.path);
-          currentSize = await compressedFile.length();
-          debugPrint(">>> 📉 New Size: ${(currentSize / 1024).toStringAsFixed(2)} KB");
-        }
+        if (output == null) break;
+        size = await output.length();
       }
 
-      debugPrint(">>> ✅ FINAL RESULT (ToolsPage):");
-      debugPrint(">>> 📉 Final Size: ${(currentSize / 1024).toStringAsFixed(2)} KB");
-      debugPrint(">>> ✂️ Total Saved: ${((originalLength - currentSize) / 1024).toStringAsFixed(2)} KB");
-      debugPrint("=================================================================");
+      return output ?? file;
 
-      return compressedFile;
-
-    } catch (e) {
-      debugPrint(">>> ❌ Error during compression: $e");
+    } catch (_) {
       return file;
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // تابع فشرده‌سازی وب
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------
+  // WEB COMPRESSION — Canvas‑Based (FINAL)
+  // ----------------------------------------------------
   Future<Uint8List?> _compressImageWeb(XFile file) async {
-    const int targetSize = 500 * 1024;
-    int quality = 90;
-
     try {
-      Uint8List originalBytes = await file.readAsBytes();
-      int originalSize = originalBytes.lengthInBytes;
+      debugPrint("===== WEB COMPRESS START =====");
 
-      debugPrint("================ WEB COMPRESSION (ToolsPage) ================");
-      debugPrint(">>> 📦 Original Web Size: ${(originalSize / 1024).toStringAsFixed(2)} KB");
+      final Uint8List inputBytes = await file.readAsBytes();
 
-      Uint8List? result = await FlutterImageCompress.compressWithList(
-        originalBytes,
-        quality: quality,
-        format: CompressFormat.jpeg,
-      );
+      final blob = html.Blob([inputBytes]);
+      final reader = html.FileReader();
 
-      int currentSize = result.lengthInBytes;
-      debugPrint(">>> 🔄 Initial Compress Size: ${(currentSize / 1024).toStringAsFixed(2)} KB");
+      reader.readAsDataUrl(blob);
+      await reader.onLoad.first;
 
-      while (result != null && currentSize > targetSize && quality > 10) {
-        quality -= 15;
-        debugPrint(">>> 📉 Reducing quality to $quality...");
-        result = await FlutterImageCompress.compressWithList(
-          originalBytes,
-          quality: quality,
-          format: CompressFormat.jpeg,
-        );
-        currentSize = result.lengthInBytes;
+      final String dataUrl = reader.result as String;
+
+      final img = html.ImageElement();
+      final Completer<void> completer = Completer();
+
+      img.src = dataUrl;
+
+      img.onLoad.listen((_) => completer.complete());
+      img.onError.listen((err) {
+        debugPrint("❌ IMG LOAD ERROR → $err");
+        if (!completer.isCompleted) completer.complete();
+      });
+
+      await completer.future;
+
+      if (img.width == 0 || img.height == 0) {
+        debugPrint("❌ INVALID WEB IMAGE");
+        return inputBytes;
       }
 
-      debugPrint(">>> ✅ Final Web Size: ${(currentSize / 1024).toStringAsFixed(2)} KB");
-      debugPrint("=================================================");
+      final canvas = html.CanvasElement(width: img.width, height: img.height);
+      final ctx = canvas.context2D;
+
+      ctx.drawImage(img, 0, 0);
+
+      final String compressedDataUrl = canvas.toDataUrl("image/jpeg", 0.7);
+      final String base64String = compressedDataUrl.split(",").last;
+
+      final Uint8List result = base64Decode(base64String);
+
+      debugPrint("===== WEB COMPRESS DONE (${(result.length / 1024).toStringAsFixed(2)} KB) =====");
       return result;
+
     } catch (e) {
-      debugPrint("Web Compression Error: $e");
+      debugPrint("Web Canvas Error: $e");
       return null;
     }
   }
