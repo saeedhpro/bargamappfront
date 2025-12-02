@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart'; // حتماً این را اضافه کنید
-import '../providers/tool_provider.dart'; // مسیر فایل پرووایدر خود را چک کنید
+import 'package:provider/provider.dart';
+import '../providers/tool_provider.dart';
 
 class PlantDetailsPage extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -20,11 +20,64 @@ class PlantDetailsPage extends StatefulWidget {
 }
 
 class _PlantDetailsPageState extends State<PlantDetailsPage> {
-  bool _isAdding = false; // برای نمایش وضعیت لودینگ دکمه
+  bool _isLoading = false; // تغییر نام از _isAdding به _isLoading چون عملیات حذف هم داریم
+  bool _isInGarden = false; // وضعیت فعلی گیاه در باغچه
+
+  @override
+  void initState() {
+    super.initState();
+    // مقداردهی اولیه وضعیت از داده‌های سرور
+    // اگر مقدار نال بود، فرض می‌کنیم در باغچه نیست
+    _isInGarden = widget.data['in_garden'] ?? false;
+  }
+
+  // متد مدیریت افزودن/حذف
+  Future<void> _handleGardenToggle(int historyId) async {
+    setState(() => _isLoading = true);
+    final provider = context.read<ToolProvider>();
+
+    try {
+      if (_isInGarden) {
+        // --- حالت حذف ---
+        // فرض بر این است که متد removeFromGarden در ToolProvider وجود دارد
+        await provider.removeFromGarden(historyId);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("🗑️ گیاه از باغچه حذف شد."),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          setState(() => _isInGarden = false);
+        }
+      } else {
+        // --- حالت افزودن ---
+        await provider.addToGarden(historyId);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("✅ با موفقیت به باغچه شما افزوده شد!"),
+              backgroundColor: Color(0xFF5D8F67),
+            ),
+          );
+          setState(() => _isInGarden = true);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("خطا: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // دسترسی به داده‌ها از طریق widget.data
     final commonName = widget.data['common_name'] ?? 'نامشخص';
     final scientificName = widget.data['plant_name'] ?? '';
     final description = widget.data['description'] ?? 'توضیحات موجود نیست';
@@ -38,7 +91,6 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
     final lightDetail = widget.data['light_detail'] ?? 'اطلاعات دقیق موجود نیست';
     final fertilizer = widget.data['fertilizer'] ?? 'کود عمومی';
 
-    // گرفتن History ID از پاسخ سرور
     final historyId = widget.data['history_id'];
 
     return Scaffold(
@@ -92,7 +144,6 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
                     _buildStatusCard(title: "دمای مناسب", value: tempShort, icon: Icons.thermostat_outlined),
                     const SizedBox(height: 20),
                     const Divider(),
-                    // اینجا context را پاس می‌دهیم
                     _buildExpandableTile(context, title: "سختی نگهداری", value: difficulty, icon: Icons.equalizer, isSimpleText: true),
                     _buildExpandableTile(context, title: "توضیحات کلی", value: description, icon: Icons.info_outline),
                     _buildExpandableTile(context, title: "نحوه آبیاری", value: waterDetail, icon: Icons.water_drop),
@@ -103,51 +154,35 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
               ),
             ),
           ),
-          // دکمه شناور پایین (اصلاح شده)
+
+          // دکمه شناور پایین (هوشمند)
           Positioned(
             bottom: 20, left: 20, right: 20,
             child: ElevatedButton(
-              onPressed: _isAdding || historyId == null
-                  ? null // اگر در حال افزودن است یا ID ندارد غیرفعال شود
-                  : () async {
-                setState(() => _isAdding = true);
-                try {
-                  // فراخوانی پرووایدر
-                  await context.read<ToolProvider>().addToGarden(historyId);
-
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("✅ با موفقیت به باغچه شما افزوده شد!"),
-                        backgroundColor: Color(0xFF5D8F67),
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("خطا: $e"), backgroundColor: Colors.red),
-                    );
-                  }
-                } finally {
-                  if (mounted) setState(() => _isAdding = false);
-                }
-              },
+              onPressed: _isLoading || historyId == null
+                  ? null
+                  : () => _handleGardenToggle(historyId),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5D8F67),
+                // تغییر رنگ بر اساس وضعیت: سبز برای افزودن، قرمز ملایم برای حذف
+                backgroundColor: _isInGarden ? const Color(0xFFD32F2F) : const Color(0xFF5D8F67),
                 disabledBackgroundColor: Colors.grey[300],
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: _isAdding
+              child: _isLoading
                   ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Row(
+                  : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add),
-                  SizedBox(width: 8),
-                  Text("افزودن به باغچه من", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  // تغییر آیکون بر اساس وضعیت
+                  Icon(_isInGarden ? Icons.remove_circle_outline : Icons.add_circle_outline),
+                  const SizedBox(width: 8),
+                  // تغییر متن بر اساس وضعیت
+                  Text(
+                    _isInGarden ? "حذف از باغچه من" : "افزودن به باغچه من",
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             ),
@@ -157,15 +192,18 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
     );
   }
 
-  // ... متدهای کمکی مثل قبل هستند (_buildHeaderImage, _buildStatusCard, ...)
   Widget _buildHeaderImage(String? networkUrl) {
     if (!kIsWeb && widget.userImageFile != null) {
       return Image.file(File(widget.userImageFile!.path), fit: BoxFit.cover);
     } else if (networkUrl != null && networkUrl.isNotEmpty) {
-      // توجه: آدرس لوکال هاست اندروید با کامپیوتر فرق دارد.
-      // اگر روی ایمولاتور هستید آدرس باید 10.0.2.2 باشد.
-      // اگر عکس لود نشد، باید BaseUrl را به ابتدای networkUrl اضافه کنید
-      return Image.network(networkUrl, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[300], child: Icon(Icons.broken_image)));
+      return Image.network(
+        networkUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: Colors.grey[300],
+          child: const Icon(Icons.broken_image),
+        ),
+      );
     }
     return Container(color: Colors.grey[300]);
   }

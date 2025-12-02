@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:path_provider/path_provider.dart'; // فقط در موبایل کار می‌کند (کد هندل شده)
+import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:bargam_app/features/auth/presentation/providers/auth_provider.dart';
@@ -118,6 +118,9 @@ class _ToolsPageState extends State<ToolsPage> {
   }
 
   void _showImageSourceOptions(BuildContext context) {
+    // منطق تشخیص دسکتاپ برای جلوگیری از کرش دوربین
+    bool isDesktop = !kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -133,7 +136,17 @@ class _ToolsPageState extends State<ToolsPage> {
               title: const Text('دوربین'),
               onTap: () {
                 Navigator.pop(ctx);
-                _pickImage(ImageSource.camera);
+                if (isDesktop) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('دوربین در نسخه دسکتاپ پشتیبانی نمی‌شود. گالری باز می‌شود.'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  _pickImage(ImageSource.gallery);
+                } else {
+                  _pickImage(ImageSource.camera);
+                }
               },
             ),
             ListTile(
@@ -152,10 +165,9 @@ class _ToolsPageState extends State<ToolsPage> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      final XFile? image = await _picker.pickImage(source: source, imageQuality: 100); // quality is handled later
+      final XFile? image = await _picker.pickImage(source: source, imageQuality: 100);
 
       if (image != null) {
-        // نمایش لودینگ
         if (!mounted) return;
         showDialog(
           context: context,
@@ -176,18 +188,18 @@ class _ToolsPageState extends State<ToolsPage> {
             );
           }
         } else {
-          // ---- منطق موبایل (اندروید/iOS) ----
+          // ---- منطق موبایل و دسکتاپ ----
           final File? compressedFile = await _compressImageMobile(File(image.path));
           if (compressedFile != null) {
             finalImage = XFile(compressedFile.path);
           }
         }
 
-        // بستن لودینگ
         if (!mounted) return;
-        Navigator.of(context, rootNavigator: true).pop();
+        Navigator.of(context, rootNavigator: true).pop(); // بستن لودینگ
 
         if (finalImage != null) {
+          debugPrint(">>> ✅ Final Image Ready in ToolsPage: ${finalImage.path}");
           if (!mounted) return;
           Navigator.push(
             context,
@@ -202,25 +214,35 @@ class _ToolsPageState extends State<ToolsPage> {
         }
       }
     } catch (e) {
-      // اگر لودینگ باز مانده، بسته شود
-      // Navigator.of(context, rootNavigator: true).pop();
       debugPrint('Error picking/compressing image: $e');
+      if(mounted) {
+        Navigator.of(context, rootNavigator: true).pop(); // اطمینان از بسته شدن لودینگ در صورت خطا
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطا: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
   // ---------------------------------------------------------------------------
-  // تابع فشرده‌سازی مخصوص موبایل
+  // تابع اصلاح شده فشرده‌سازی موبایل (دقیقاً مثل MainPage)
   // ---------------------------------------------------------------------------
   Future<File?> _compressImageMobile(File file) async {
-    final int targetSize = 500 * 1024; // 500 KB
-    int quality = 90;
+    const int targetSize = 500 * 1024; // 500 KB
+    int quality = 95;
 
-    // گرفتن مسیر تمپ
+    // 1. چاپ حجم اولیه
+    int originalLength = await file.length();
+    debugPrint("=================================================================");
+    debugPrint(">>> 📸 START (ToolsPage): Processing Image");
+    debugPrint(">>> 📂 Original Path: ${file.path}");
+    debugPrint(">>> 📦 Original Size: ${(originalLength / 1024).toStringAsFixed(2)} KB");
+
     final Directory tempDir = await getTemporaryDirectory();
-    final String targetPath = p.join(tempDir.path, "${DateTime.now().millisecondsSinceEpoch}.jpg");
+    final String targetPath = p.join(tempDir.path, "tools_converted_${DateTime.now().millisecondsSinceEpoch}.jpg");
 
     try {
-      // تلاش اول برای فشرده‌سازی
+      // تبدیل اولیه به JPEG
       var resultXFile = await FlutterImageCompress.compressAndGetFile(
         file.absolute.path,
         targetPath,
@@ -228,62 +250,88 @@ class _ToolsPageState extends State<ToolsPage> {
         format: CompressFormat.jpeg,
       );
 
-      if (resultXFile == null) return null;
-      File compressedFile = File(resultXFile.path);
+      if (resultXFile == null) {
+        debugPrint(">>> ❌ Conversion failed, returning original.");
+        return file;
+      }
 
-      // حلقه کاهش کیفیت تا رسیدن به حجم مطلوب
-      while (compressedFile.lengthSync() > targetSize && quality > 10) {
-        quality -= 10;
+      File compressedFile = File(resultXFile.path);
+      int currentSize = await compressedFile.length();
+      debugPrint(">>> 🔄 Converted to JPEG (Quality $quality). Size: ${(currentSize / 1024).toStringAsFixed(2)} KB");
+
+      // حلقه کاهش حجم
+      while (currentSize > targetSize && quality > 10) {
+        quality -= 15;
+        debugPrint(">>> ⚠️ Still too big (> 500KB). Reducing quality to $quality...");
+
+        final String newTargetPath = p.join(tempDir.path, "tools_converted_${DateTime.now().millisecondsSinceEpoch}_$quality.jpg");
+
         final newResult = await FlutterImageCompress.compressAndGetFile(
-          file.absolute.path,
-          targetPath,
+          compressedFile.absolute.path,
+          newTargetPath,
           quality: quality,
           format: CompressFormat.jpeg,
         );
+
         if (newResult != null) {
+          // پاک کردن فایل موقت قبلی
+          try { await compressedFile.delete(); } catch (_) {}
+
           compressedFile = File(newResult.path);
+          currentSize = await compressedFile.length();
+          debugPrint(">>> 📉 New Size: ${(currentSize / 1024).toStringAsFixed(2)} KB");
         }
       }
 
-      debugPrint("Mobile Final Size: ${(compressedFile.lengthSync() / 1024).toStringAsFixed(2)} KB");
+      debugPrint(">>> ✅ FINAL RESULT (ToolsPage):");
+      debugPrint(">>> 📉 Final Size: ${(currentSize / 1024).toStringAsFixed(2)} KB");
+      debugPrint(">>> ✂️ Total Saved: ${((originalLength - currentSize) / 1024).toStringAsFixed(2)} KB");
+      debugPrint("=================================================================");
+
       return compressedFile;
+
     } catch (e) {
-      debugPrint("Mobile Compression Error: $e");
-      return null;
+      debugPrint(">>> ❌ Error during compression: $e");
+      return file;
     }
   }
 
   // ---------------------------------------------------------------------------
-  // تابع فشرده‌سازی مخصوص وب
+  // تابع فشرده‌سازی وب
   // ---------------------------------------------------------------------------
   Future<Uint8List?> _compressImageWeb(XFile file) async {
-    final int targetSize = 500 * 1024; // 500 KB
+    const int targetSize = 500 * 1024;
     int quality = 90;
 
     try {
       Uint8List originalBytes = await file.readAsBytes();
+      int originalSize = originalBytes.lengthInBytes;
 
-      // تلاش اول
+      debugPrint("================ WEB COMPRESSION (ToolsPage) ================");
+      debugPrint(">>> 📦 Original Web Size: ${(originalSize / 1024).toStringAsFixed(2)} KB");
+
       Uint8List? result = await FlutterImageCompress.compressWithList(
         originalBytes,
         quality: quality,
         format: CompressFormat.jpeg,
       );
 
-      // حلقه کاهش کیفیت
-      while (result != null && result.lengthInBytes > targetSize && quality > 10) {
-        quality -= 10;
+      int currentSize = result.lengthInBytes;
+      debugPrint(">>> 🔄 Initial Compress Size: ${(currentSize / 1024).toStringAsFixed(2)} KB");
+
+      while (result != null && currentSize > targetSize && quality > 10) {
+        quality -= 15;
+        debugPrint(">>> 📉 Reducing quality to $quality...");
         result = await FlutterImageCompress.compressWithList(
           originalBytes,
           quality: quality,
           format: CompressFormat.jpeg,
         );
+        currentSize = result.lengthInBytes;
       }
 
-      if (result != null) {
-        debugPrint("Web Final Size: ${(result.lengthInBytes / 1024).toStringAsFixed(2)} KB");
-      }
-
+      debugPrint(">>> ✅ Final Web Size: ${(currentSize / 1024).toStringAsFixed(2)} KB");
+      debugPrint("=================================================");
       return result;
     } catch (e) {
       debugPrint("Web Compression Error: $e");

@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:bargam_app/core/error/exceptions.dart';
 import 'package:bargam_app/features/auth/presentation/providers/auth_provider.dart';
 import '../providers/tool_provider.dart';
-import 'plant_details_page.dart'; // <--- فایل جدید را ایمپورت کنید
+import 'plant_details_page.dart';
 
 class PlantIdentificationPage extends StatefulWidget {
   final XFile imageFile;
@@ -21,6 +21,7 @@ class PlantIdentificationPage extends StatefulWidget {
 
 class _PlantIdentificationPageState extends State<PlantIdentificationPage> {
   String? _error;
+  // ignore: unused_field
   bool _isThinking = true;
 
   @override
@@ -33,13 +34,26 @@ class _PlantIdentificationPageState extends State<PlantIdentificationPage> {
 
   Future<void> _processImage(XFile image) async {
     final toolProvider = Provider.of<ToolProvider>(context, listen: false);
+    // ignore: unused_local_variable
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     try {
+      // درخواست به سرور ارسال می‌شود
       final result = await toolProvider.identifyPlant(image);
 
+      // ---------------------------------------------------------
+      // >>> چاپ پاسخ سرور در کنسول (اینجا اضافه شد) <<<
+      // ---------------------------------------------------------
+      debugPrint("=================================================");
+      debugPrint(">>> 📡 SERVER RESPONSE RECEIVED:");
+      debugPrint(">>> Type: ${result.runtimeType}");
+      debugPrint(">>> Data: $result");
+      // نکته: اگر مدل شما متد toString() نداشته باشد، ممکن است فقط Instance of ... ببینید.
+      // اگر متد toJson() دارید، می‌توانید بنویسید: result.toJson()
+      debugPrint("=================================================");
+      // ---------------------------------------------------------
+
       if (mounted) {
-        // --- تغییر مهم: هدایت به صفحه جزئیات به جای نمایش در همین صفحه ---
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -51,6 +65,8 @@ class _PlantIdentificationPageState extends State<PlantIdentificationPage> {
         );
       }
     } catch (e) {
+      debugPrint(">>> ❌ SERVER ERROR: $e"); // چاپ خطای احتمالی سرور
+
       if (!mounted) return;
       if (e is AuthException) {
         Navigator.of(context).pop();

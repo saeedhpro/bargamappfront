@@ -65,6 +65,18 @@ class ToolProvider extends ChangeNotifier {
       rethrow;
     }
   }
+
+  Future<void> removeFromGarden(int historyId) async {
+    try {
+      // فراخوانی اندپوینت جدیدی که در پایتون ساختیم
+      await httpClient.delete(
+        '/garden/history/$historyId',
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+  
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
