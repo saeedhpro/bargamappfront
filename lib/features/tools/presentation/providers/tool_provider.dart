@@ -43,7 +43,7 @@ class ToolProvider extends ChangeNotifier {
         file: imageFile, // نکته مهم ۲: ارسال مستقیم XFile
         fieldName: 'images', // نکته مهم ۳: تغییر نام به 'images' طبق فایل main.py
       );
-
+      print(response.toString());
       _setLoading(false);
       return response as Map<String, dynamic>;
 
