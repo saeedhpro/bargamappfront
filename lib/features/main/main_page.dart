@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:bargam_app/features/garden/presentation/providers/garden_provider.dart';
+import 'package:bargam_app/features/home/presentation/providers/plant_provider.dart';
 import 'package:flutter/foundation.dart'; // برای kIsWeb
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -88,7 +90,16 @@ class _MainPageState extends State<MainPage> {
         activeIndex: _currentIndex,
         gapLocation: GapLocation.center,
         notchSmoothness: NotchSmoothness.smoothEdge,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: (index) {
+          setState(() => _currentIndex = index);
+          if (index == 0) {
+            context.read<PlantProvider>().loadPlants(refresh: true);
+          }
+          if (index == 1) {
+            context.read<GardenProvider>().fetchPlants();
+          }
+        },
+
         backgroundColor: Colors.white,
         height: 70,
       ),
