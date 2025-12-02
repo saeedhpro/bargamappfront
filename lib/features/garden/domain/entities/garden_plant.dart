@@ -18,7 +18,7 @@ class GardenPlant {
       id: json['id'],
       plantName: json['plant_name'] ?? '',
       nickname: json['nickname'] ?? '',
-      imageUrl: json['image_url'],
+      imageUrl: json['image_path'],
       details: json['details'] ?? {},
     );
   }
