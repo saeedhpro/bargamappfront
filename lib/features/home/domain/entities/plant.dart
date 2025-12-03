@@ -8,6 +8,8 @@ class Plant extends Equatable {
   final String? description;
   final Map<String, dynamic> details;
   final String createdAt;
+  final bool inGarden;
+  final int? gardenId;
 
   const Plant({
     required this.id,
@@ -17,6 +19,8 @@ class Plant extends Equatable {
     this.description,
     this.details = const {},
     required this.createdAt,
+    required this.inGarden,
+    required this.gardenId,
   });
 
   /// هلپرها (Helpers) برای استخراج داده‌های تمیز از داخل Map details
@@ -47,6 +51,8 @@ class Plant extends Equatable {
     String? description,
     Map<String, dynamic>? details,
     String? createdAt,
+    required bool inGarden,
+    int? gardenId,
   }) {
     return Plant(
       id: id ?? this.id,
@@ -56,6 +62,8 @@ class Plant extends Equatable {
       description: description ?? this.description,
       details: details ?? this.details,
       createdAt: createdAt ?? this.createdAt,
+      inGarden: inGarden,
+      gardenId: gardenId ?? this.gardenId,
     );
   }
 
@@ -68,5 +76,7 @@ class Plant extends Equatable {
     description,
     details,
     createdAt,
+    inGarden,
+    gardenId
   ];
 }

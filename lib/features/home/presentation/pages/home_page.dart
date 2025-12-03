@@ -249,7 +249,6 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
                           ),
                         );
                       }
-
                       return PlantCard(plant: provider.plants[index]);
                     },
                   ),

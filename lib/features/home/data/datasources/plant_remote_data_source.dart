@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../../../../core/network/http_client.dart';
 import '../../../../core/error/exceptions.dart';
 import '../models/plant_model.dart';
@@ -57,7 +59,6 @@ class PlantRemoteDataSourceImpl implements PlantRemoteDataSource {
 
     try {
       final response = await httpClient.get('/garden/history${queryString.toString()}');
-
       List<dynamic> data;
       if (response is List) {
         data = response;
@@ -66,7 +67,6 @@ class PlantRemoteDataSourceImpl implements PlantRemoteDataSource {
       } else {
         return [];
       }
-
       return data.map((json) => PlantModel.fromJson(json)).toList();
     } catch (e) {
       if (e is! AuthException && e is! NetworkException) {

@@ -51,15 +51,17 @@ class ToolProvider extends ChangeNotifier {
       rethrow;
     }
   }
-  Future<void> addToGarden(int historyId, {String? nickname}) async {
+
+  Future<Map<String, dynamic>> addToGarden(int historyId, {String? nickname}) async {
     try {
-      await httpClient.post(
+      final response = await httpClient.post(
         '/garden/add',
         body: {
           'history_id': historyId,
           'nickname': nickname,
         },
       );
+      return response as Map<String, dynamic>;
     } catch (e) {
       rethrow;
     }
@@ -67,7 +69,6 @@ class ToolProvider extends ChangeNotifier {
 
   Future<void> removeFromGarden(int historyId) async {
     try {
-      // فراخوانی اندپوینت جدیدی که در پایتون ساختیم
       await httpClient.delete(
         '/garden/history/$historyId',
       );
@@ -83,5 +84,15 @@ class ToolProvider extends ChangeNotifier {
 
   Future<void> loadTools() async {
     notifyListeners();
+  }
+
+  Future<void> removeFromGardenByGardenId(int gardenId) async {
+    try {
+      await httpClient.delete(
+        '/garden/$gardenId',
+      );
+    } catch (e) {
+      rethrow;
+    }
   }
 }

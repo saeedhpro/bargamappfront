@@ -9,8 +9,9 @@ class PlantModel extends Plant {
     String? description,
     Map<String, dynamic> details = const {},
     required String createdAt,
+    required bool inGarden,
+    int? gardenId,
   }) : super(
-    // داده‌ها را مستقیماً به کلاس پدر (Plant) پاس می‌دهیم
     id: id,
     imagePath: imagePath,
     plantName: plantName,
@@ -18,6 +19,8 @@ class PlantModel extends Plant {
     description: description,
     details: details,
     createdAt: createdAt,
+    inGarden: inGarden,
+    gardenId: gardenId,
   );
 
   factory PlantModel.fromJson(Map<String, dynamic> json) {
@@ -27,6 +30,8 @@ class PlantModel extends Plant {
       plantName: json['plant_name']?.toString() ?? 'نامشخص',
       commonName: json['common_name']?.toString(),
       description: json['description']?.toString(),
+      gardenId: json['garden_id'],
+      inGarden: json['in_garden'],
       details: json['details'] != null
           ? Map<String, dynamic>.from(json['details'])
           : {},
@@ -45,6 +50,8 @@ class PlantModel extends Plant {
       description: description,
       details: details,
       createdAt: createdAt,
+      inGarden: inGarden,
+      gardenId: gardenId,
     );
   }
 
