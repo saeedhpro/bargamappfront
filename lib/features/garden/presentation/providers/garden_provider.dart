@@ -38,7 +38,7 @@ class GardenProvider extends ChangeNotifier {
 
       if (response is List) {
         _plants = response.map((json) => GardenPlant.fromJson(json)).toList();
-
+        print(_plants[0]);
         if (_plants.isEmpty) {
           _setStatus(GardenStatus.empty);
         } else {

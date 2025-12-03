@@ -22,7 +22,7 @@ class _GardenDetailsPageState extends State<GardenDetailsPage> {
 
     final commonName = widget.plant.nickname;
     final scientificName = widget.plant.plantName;
-    final imageUrl = widget.plant.imageUrl;
+    final imageUrl = widget.plant.imagePath;
 
     // خواندن امن اطلاعات با مقادیر پیش‌فرض
     final description = details['description'] ?? 'توضیحات موجود نیست';

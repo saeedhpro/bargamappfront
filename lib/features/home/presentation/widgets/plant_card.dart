@@ -37,7 +37,6 @@ class PlantCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
-            // ... بقیه کدهای طراحی کارت که قبلاً داشتید
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),

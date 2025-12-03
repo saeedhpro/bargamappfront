@@ -1,4 +1,5 @@
 import 'package:bargam_app/features/main/main_page.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/garden_provider.dart';
@@ -129,6 +130,7 @@ class _GardenPageState extends State<GardenPage> {
                     ),
                   );
                 }
+                
 
                 // ۳. نمایش لیست
                 return RefreshIndicator(
@@ -139,7 +141,7 @@ class _GardenPageState extends State<GardenPage> {
                     itemCount: provider.plants.length,
                     itemBuilder: (context, index) {
                       final plant = provider.plants[index];
-
+                      final imagePath = plant.imagePath!;
                       // --- تغییر اصلی: اضافه کردن GestureDetector ---
                       return GestureDetector(
                         onTap: () {
@@ -167,7 +169,6 @@ class _GardenPageState extends State<GardenPage> {
                             textDirection: TextDirection.rtl,
                             child: Row(
                               children: [
-                                // عکس گیاه
                                 ClipRRect(
                                   borderRadius: const BorderRadius.only(
                                     topRight: Radius.circular(16),
@@ -175,25 +176,16 @@ class _GardenPageState extends State<GardenPage> {
                                     topLeft: Radius.circular(4),
                                     bottomLeft: Radius.circular(4),
                                   ),
-                                  child: plant.imageUrl != null
-                                      ? Image.network(
-                                    plant.imageUrl!,
+                                  child: imagePath.isNotEmpty
+                                      ? CachedNetworkImage(
+                                    imageUrl: imagePath,
                                     width: 100,
                                     height: 100,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (c, o, s) => Container(
-                                      width: 100,
-                                      height: 100,
-                                      color: Colors.grey[200],
-                                      child: const Icon(Icons.image_not_supported),
-                                    ),
+                                    placeholder: (context, url) => Container(width: 80, height: 80, color: Colors.grey.shade200),
+                                    errorWidget: (context, url, error) => _buildPlaceholderImage(),
                                   )
-                                      : Container(
-                                    width: 100,
-                                    height: 100,
-                                    color: Colors.grey[200],
-                                    child: const Icon(Icons.local_florist, color: Colors.grey),
-                                  ),
+                                      : _buildPlaceholderImage(),
                                 ),
 
                                 // متن‌ها
@@ -277,6 +269,14 @@ class _GardenPageState extends State<GardenPage> {
           ),
         ],
       ),
+    );
+  }
+  Widget _buildPlaceholderImage() {
+    return Container(
+      width: 80,
+      height: 80,
+      color: const Color(0xFFE8F5E9),
+      child: const Icon(Icons.eco, color: Color(0xFF4CAF50), size: 40),
     );
   }
 }

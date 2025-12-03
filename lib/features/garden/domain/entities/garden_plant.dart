@@ -2,14 +2,14 @@ class GardenPlant {
   final int id;
   final String plantName;
   final String nickname;
-  final String? imageUrl;
+  final String? imagePath;
   final Map<String, dynamic> details;
 
   GardenPlant({
     required this.id,
     required this.plantName,
     required this.nickname,
-    this.imageUrl,
+    this.imagePath,
     required this.details,
   });
 
@@ -18,7 +18,7 @@ class GardenPlant {
       id: json['id'],
       plantName: json['plant_name'] ?? '',
       nickname: json['nickname'] ?? '',
-      imageUrl: json['image_path'],
+      imagePath: json['image_path'],
       details: json['details'] ?? {},
     );
   }
