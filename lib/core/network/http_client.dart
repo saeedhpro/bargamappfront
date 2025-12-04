@@ -12,7 +12,7 @@ class HttpClient {
 
   // تنظیمات timeout
   static const Duration _defaultTimeout = Duration(seconds: 5);
-  static const Duration _uploadTimeout = Duration(seconds: 10);
+  static const Duration _uploadTimeout = Duration(seconds: 40);
 
   HttpClient({
     required this.baseUrl,
@@ -266,7 +266,7 @@ class HttpClient {
       return _handleResponse(response);
 
     } on TimeoutException {
-      throw NetworkException('آپلود فایل طولانیفاً دوباره تلاش کنید.');
+      throw NetworkException('آپلود فایل طولانی شد لطفاً دوباره تلاش کنید.');
     } catch (e) {
       if (e is AuthException || e is NetworkException) rethrow;
       throw NetworkException('Error uploading photo: $e');
