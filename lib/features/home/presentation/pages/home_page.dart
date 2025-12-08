@@ -1,4 +1,5 @@
 import 'package:bargam_app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:bargam_app/features/chat/presentation/pages/chat_list_page.dart';
 import 'package:bargam_app/features/tools/presentation/widgets/support_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -121,12 +122,16 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
           IconButton(
             icon: const Icon(Icons.headset_mic_outlined, color: Colors.white),
             onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                backgroundColor: Colors.transparent,
-                isScrollControlled: true,
-                builder: (context) => const SupportBottomSheet(),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ChatListPage()),
               );
+              // showModalBottomSheet(
+              //   context: context,
+              //   backgroundColor: Colors.transparent,
+              //   isScrollControlled: true,
+              //   builder: (context) => const SupportBottomSheet(),
+              // );
             },
           ),
         ],

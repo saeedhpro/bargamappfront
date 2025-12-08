@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
+import 'features/chat/presentation/providers/chat_provider.dart';
 
 // Core & Utils
 import 'core/network/http_client.dart';
@@ -53,8 +54,8 @@ void main() async {
   // نکته: برای اندروید امولاتور معمولا از 10.0.2.2 استفاده می‌شود
   // اگر روی وب تست می‌کنید 127.0.0.1 درست است
   final httpClient = HttpClient(
-    baseUrl: 'http://65.108.27.190:8001/api/v1',
-    // baseUrl: 'http://127.0.0.1:8000/api/v1',
+    // baseUrl: 'http://65.108.27.190:8001/api/v1',
+    baseUrl: 'http://127.0.0.1:8000/api/v1',
     tokenManager: tokenManager,
   );
 
@@ -79,7 +80,11 @@ void main() async {
       providers: [
         Provider<TokenManager>.value(value: tokenManager),
         Provider<HttpClient>.value(value: httpClient),
-
+        ChangeNotifierProvider(
+          create: (_) => ChatProvider(
+            httpClient: httpClient,
+          ),
+        ),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
             tokenManager: tokenManager,
