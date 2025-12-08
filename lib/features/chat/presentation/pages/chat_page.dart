@@ -1,3 +1,4 @@
+import 'package:bargam_app/features/auth/presentation/providers/auth_provider.dart';
 import 'package:bargam_app/features/chat/presentation/providers/chat_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -25,12 +26,15 @@ class _ChatPageState extends State<ChatPage> {
     super.initState();
 
     Future.microtask(() async {
-      final provider = context.read<ChatProvider>();
+      final chatProvider = context.read<ChatProvider>();
+      final authProvider = context.read<AuthProvider>();
 
-      await provider.loadMessages(widget.conversationId);
-      provider.connectWebSocket(widget.conversationId);
+      // ✅ ارسال userId به ChatProvider
+      chatProvider.setUserId(authProvider.userId);
 
-      // Scroll to bottom after initial messages load
+      await chatProvider.loadMessages(widget.conversationId);
+      chatProvider.connectWebSocket(widget.conversationId);
+
       Future.delayed(const Duration(milliseconds: 200), _scrollToBottom);
     });
   }
@@ -82,7 +86,6 @@ class _ChatPageState extends State<ChatPage> {
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length + (provider.isTyping ? 1 : 0),
                   itemBuilder: (context, index) {
-                    // Typing indicator آخر لیست
                     if (provider.isTyping && index == messages.length) {
                       return Align(
                         alignment: Alignment.centerLeft,
@@ -100,7 +103,10 @@ class _ChatPageState extends State<ChatPage> {
                     }
 
                     final m = messages[index];
-                    final isUser = m["sender"] == "user";
+
+                    // ✅ استفاده از sender_type جدید
+                    final senderType = m["sender_type"] ?? m["sender"];
+                    final isUser = senderType == "user";
 
                     return Align(
                       alignment:
@@ -126,7 +132,6 @@ class _ChatPageState extends State<ChatPage> {
             ),
           ),
 
-          // Input
           Container(
             padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
             child: Row(

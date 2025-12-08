@@ -8,6 +8,7 @@ enum ChatListStatus { initial, loading, loaded, error }
 
 class ChatProvider extends ChangeNotifier {
   final HttpClient httpClient;
+  String? _currentUserId; // ✅ ذخیره userId
 
   ChatProvider({required this.httpClient});
 
@@ -110,11 +111,23 @@ class ChatProvider extends ChangeNotifier {
 
   bool get isTyping => _supportTyping;
 
-  void connectWebSocket(int conversationId) {
+  // ✅ متد جدید: دریافت userId از بیرون
+  void setUserId(String? userId) {
+    _currentUserId = userId;
+  }
+
+  void connectWebSocket(int conversationId) async {
     disconnectWebSocket();
 
+    if (_currentUserId == null) {
+      print("❌ User ID not set. Call setUserId() first.");
+      return;
+    }
+
     final base = httpClient.baseUrl;
-    final wsUrl = base.replaceFirst("http", "ws") + "/ws/chat/$conversationId";
+
+    // ✅ ارسال user_id به جای token
+    final wsUrl = "${base.replaceFirst("http", "ws")}/ws/chat/$conversationId?user_id=$_currentUserId";
 
     print("🔗 Connecting to WebSocket: $wsUrl");
 
@@ -132,7 +145,6 @@ class ChatProvider extends ChangeNotifier {
             if (type == "message") {
               final msg = data["message"];
               if (msg != null) {
-                // جلوگیری از اضافه شدن پیام تکراری
                 final exists = _messages.any((m) => m["id"] == msg["id"]);
                 if (!exists) {
                   _messages.add(msg);
@@ -141,7 +153,7 @@ class ChatProvider extends ChangeNotifier {
                 }
               }
             } else if (type == "typing") {
-              if (data["from"] == "support") {
+              if (data["from"] == "support" || data["from"] == "admin") {
                 _supportTyping = data["is_typing"] ?? false;
                 notifyListeners();
               }
@@ -157,7 +169,7 @@ class ChatProvider extends ChangeNotifier {
               }
             }
           } catch (e) {
-            print("❌ Error parsing WebSocket message: $e");
+            print("❌ Error parsing WebSocket: $e");
           }
         },
         onError: (error) {
@@ -166,7 +178,7 @@ class ChatProvider extends ChangeNotifier {
           notifyListeners();
         },
         onDone: () {
-          print("✅ WebSocket connection closed");
+          print("✅ WebSocket closed");
           _supportTyping = false;
           notifyListeners();
         },
@@ -191,10 +203,10 @@ class ChatProvider extends ChangeNotifier {
     final message = jsonEncode({
       "action": "send_message",
       "text": text,
-      "sender": "user",
+      "type": "text",
     });
 
-    print("📤 Sending message: $message");
+    print("📤 Sending: $message");
     _channel!.sink.add(message);
   }
 
@@ -217,9 +229,6 @@ class ChatProvider extends ChangeNotifier {
     }));
   }
 
-  // ========================
-  // ساخت چت جدید
-  // ========================
   Future<Map<String, dynamic>> startNewChat({String title = "سوال جدید"}) async {
     try {
       final data = await httpClient.post(
@@ -229,14 +238,11 @@ class ChatProvider extends ChangeNotifier {
 
       return data["conversation"];
     } catch (e) {
-      print("❌ Error creating new chat: $e");
+      print("❌ Error creating chat: $e");
       rethrow;
     }
   }
 
-  // ========================
-  // پاکسازی
-  // ========================
   void clearMessages() {
     _messages.clear();
     _currentConversationId = null;

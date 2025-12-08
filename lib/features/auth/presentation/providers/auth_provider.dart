@@ -24,7 +24,7 @@ class AuthProvider extends ChangeNotifier {
   User? get user => _user;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
-
+  String? get userId => _user?.id;
   AuthProvider({
     required this.tokenManager,
     required this.httpClient,
