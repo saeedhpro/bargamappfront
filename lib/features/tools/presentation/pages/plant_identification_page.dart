@@ -45,12 +45,10 @@ class _PlantIdentificationPageState extends State<PlantIdentificationPage> {
       // >>> چاپ پاسخ سرور در کنسول (اینجا اضافه شد) <<<
       // ---------------------------------------------------------
       debugPrint("=================================================");
-      debugPrint(">>> 📡 SERVER RESPONSE RECEIVED:");
-      debugPrint(">>> Type: ${result.runtimeType}");
+      // debugPrint(">>> 📡 SERVER RESPONSE RECEIVED:");
+      // debugPrint(">>> Type: ${result.runtimeType}");
       debugPrint(">>> Data: $result");
-      // نکته: اگر مدل شما متد toString() نداشته باشد، ممکن است فقط Instance of ... ببینید.
-      // اگر متد toJson() دارید، می‌توانید بنویسید: result.toJson()
-      debugPrint("=================================================");
+      // debugPrint("=================================================");
       // ---------------------------------------------------------
 
       if (mounted) {

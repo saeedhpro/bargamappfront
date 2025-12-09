@@ -102,6 +102,19 @@ class _GardenDetailsPageState extends State<GardenDetailsPage> {
                     _buildExpandableTile(context, title: "نحوه آبیاری", value: waterDetail, icon: Icons.water_drop),
                     _buildExpandableTile(context, title: "کود مناسب", value: fertilizer, icon: Icons.spa_outlined),
                     _buildExpandableTile(context, title: "جزئیات نور", value: lightDetail, icon: Icons.light_mode_outlined),
+                    _buildExpandableTile(
+                      context,
+                      title: "آفات و بیماری‌های رایج",
+                      value: widget.plant.diseases ?? 'اطلاعاتی موجود نیست',
+                      icon: Icons.bug_report_outlined,
+                    ),
+
+                    _buildExpandableTile(
+                      context,
+                      title: "کنترل و پیشگیری از آفات و بیماری‌ها",
+                      value: widget.plant.pestControl ?? 'اطلاعاتی موجود نیست',
+                      icon: Icons.healing_outlined,
+                    ),
                   ],
                 ),
               ),

@@ -20,28 +20,23 @@ class PlantDetailsPage extends StatefulWidget {
 }
 
 class _PlantDetailsPageState extends State<PlantDetailsPage> {
-  bool _isLoading = false; // تغییر نام از _isAdding به _isLoading چون عملیات حذف هم داریم
-  bool _isInGarden = false; // وضعیت فعلی گیاه در باغچه
+  bool _isLoading = false;
+  bool _isInGarden = false;
 
   @override
   void initState() {
     super.initState();
-    // مقداردهی اولیه وضعیت از داده‌های سرور
-    // اگر مقدار نال بود، فرض می‌کنیم در باغچه نیست
     _isInGarden = widget.data['in_garden'] ?? false;
   }
 
-  // متد مدیریت افزودن/حذف
+  /// افزودن یا حذف از باغچه
   Future<void> _handleGardenToggle(int historyId) async {
     setState(() => _isLoading = true);
     final provider = context.read<ToolProvider>();
 
     try {
       if (_isInGarden) {
-        // --- حالت حذف ---
-        // فرض بر این است که متد removeFromGarden در ToolProvider وجود دارد
         await provider.removeFromGarden(historyId);
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -52,13 +47,11 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
           setState(() => _isInGarden = false);
         }
       } else {
-        // --- حالت افزودن ---
         await provider.addToGarden(historyId);
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text("✅ با موفقیت به باغچه شما افزوده شد!"),
+              content: Text("✅ به باغچه‌ی شما افزوده شد."),
               backgroundColor: Color(0xFF5D8F67),
             ),
           );
@@ -76,34 +69,40 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
     }
   }
 
+  /// تابع کمکی برای تبدیل مقدار به رشتهٔ خوانا،
+  /// درصورتی‌که نوع آن Map یا List باشد.
+  String _formatValue(dynamic value) {
+    if (value == null) return 'اطلاعاتی موجود نیست';
+
+    if (value is String) return value;
+    if (value is Map) {
+      return value.entries.map((e) => "• ${e.key}: ${e.value}").join("\n");
+    }
+    if (value is List) {
+      return value.map((e) => "• $e").join("\n");
+    }
+    return value.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final commonName = widget.data['common_name'] ?? 'نامشخص';
-    final scientificName = widget.data['plant_name'] ?? '';
-    final description = widget.data['description'] ?? 'توضیحات موجود نیست';
-
-    final waterShort = widget.data['water'] ?? 'نامشخص';
-    final lightShort = widget.data['light'] ?? 'نامشخص';
-    final tempShort = widget.data['temp'] ?? 'نامشخص';
-
-    final difficulty = widget.data['difficulty'] ?? 'نامشخص';
-    final waterDetail = widget.data['water_detail'] ?? description;
-    final nameFa = widget.data['name_fa'] ?? commonName;
-    final lightDetail = widget.data['light_detail'] ?? 'اطلاعات دقیق موجود نیست';
-    final fertilizer = widget.data['fertilizer'] ?? 'کود عمومی';
-
-    final historyId = widget.data['history_id'];
+    final data = widget.data;
+    final commonName = data['common_name'] ?? 'نامشخص';
+    final nameFa = data['name_fa'] ?? commonName;
+    final scientificName = data['plant_name'] ?? '';
+    final historyId = data['history_id'];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: Stack(
         children: [
-          // هدر عکس
+          // ● تصویر بالا
           Positioned(
             top: 0, left: 0, right: 0, height: 300,
             child: _buildHeaderImage(widget.data['image_url']),
           ),
-          // دکمه بازگشت
+
+          // ● نوار بالا
           Positioned(
             top: 40, left: 20, right: 20,
             child: Row(
@@ -113,12 +112,16 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
                   onPressed: () => Navigator.pop(context),
                 ),
-                const Text("مشخصات گیاه", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  "مشخصات گیاه",
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                ),
                 const SizedBox(width: 48),
               ],
             ),
           ),
-          // بدنه اصلی سفید
+
+          // ● محتوای صفحه
           Positioned.fill(
             top: 220,
             child: Container(
@@ -127,44 +130,65 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
                 borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
               ),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 30, 20, 100),
+                padding: const EdgeInsets.fromLTRB(20, 30, 20, 120),
                 child: Column(
                   children: [
                     Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2))),
                     const SizedBox(height: 20),
                     Text(nameFa, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                     const SizedBox(height: 8),
-                    Text(scientificName, style: TextStyle(fontSize: 16, color: Colors.grey[600], fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+                    Text(scientificName, style: const TextStyle(fontSize: 16, color: Colors.grey, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
                     const SizedBox(height: 30),
-                    const Align(alignment: Alignment.centerRight, child: Text("مراقبت و شرایط نگهداری", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+
+                    /// --- وضعیت نگهداری ---
+                    const Align(
+                      alignment: Alignment.centerRight,
+                      child: Text("مراقبت و شرایط نگهداری", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ),
                     const SizedBox(height: 15),
-                    _buildStatusCard(title: "آبیاری مناسب", value: waterShort, icon: Icons.water_drop_outlined),
+
+                    _buildStatusCard(title: "آبیاری مناسب", value: _formatValue(data['water']), icon: Icons.water_drop_outlined),
                     const SizedBox(height: 10),
-                    _buildStatusCard(title: "نور مناسب", value: lightShort, icon: Icons.wb_sunny_outlined),
+                    _buildStatusCard(title: "نور مناسب", value: _formatValue(data['light']), icon: Icons.wb_sunny_outlined),
                     const SizedBox(height: 10),
-                    _buildStatusCard(title: "دمای مناسب", value: tempShort, icon: Icons.thermostat_outlined),
-                    const SizedBox(height: 20),
+                    _buildStatusCard(title: "دمای مناسب", value: _formatValue(data['temp']), icon: Icons.thermostat_outlined),
+
+                    const SizedBox(height: 25),
                     const Divider(),
-                    _buildExpandableTile(context, title: "سختی نگهداری", value: difficulty, icon: Icons.equalizer, isSimpleText: true),
-                    _buildExpandableTile(context, title: "توضیحات کلی", value: description, icon: Icons.info_outline),
-                    _buildExpandableTile(context, title: "نحوه آبیاری", value: waterDetail, icon: Icons.water_drop),
-                    _buildExpandableTile(context, title: "کود مناسب", value: fertilizer, icon: Icons.spa_outlined),
-                    _buildExpandableTile(context, title: "جزئیات نور", value: lightDetail, icon: Icons.light_mode_outlined),
+                    const SizedBox(height: 10),
+
+                    /// --- جزئیات ---
+                    _buildExpandableTile(context, title: "توضیحات کلی", value: _formatValue(data['description']), icon: Icons.info_outline),
+                    _buildExpandableTile(context, title: "نحوه آبیاری", value: _formatValue(data['water_detail']), icon: Icons.water_drop),
+                    _buildExpandableTile(context, title: "نور و موقعیت", value: _formatValue(data['light_detail']), icon: Icons.light_mode_outlined),
+                    _buildExpandableTile(context, title: "کود مناسب", value: _formatValue(data['fertilizer']), icon: Icons.spa_outlined),
+                    _buildExpandableTile(context, title: "سختی نگهداری", value: _formatValue(data['difficulty']), icon: Icons.equalizer),
+
+                    /// --- اطلاعات سلامت گیاه ---
+                    _buildExpandableTile(
+                      context,
+                      title: "آفات و بیماری‌های رایج",
+                      value: _formatValue(data['diseases']),
+                      icon: Icons.bug_report_outlined,
+                    ),
+                    _buildExpandableTile(
+                      context,
+                      title: "روش‌های کنترل آفات و بیماری‌ها",
+                      value: _formatValue(data['pest_control']),
+                      icon: Icons.healing_outlined,
+                    ),
                   ],
                 ),
               ),
             ),
           ),
 
-          // دکمه شناور پایین (هوشمند)
+          // ● دکمه پایین
           Positioned(
             bottom: 20, left: 20, right: 20,
             child: ElevatedButton(
-              onPressed: _isLoading || historyId == null
-                  ? null
-                  : () => _handleGardenToggle(historyId),
+              onPressed: _isLoading || historyId == null ? null : () => _handleGardenToggle(historyId),
               style: ElevatedButton.styleFrom(
-                // تغییر رنگ بر اساس وضعیت: سبز برای افزودن، قرمز ملایم برای حذف
                 backgroundColor: _isInGarden ? const Color(0xFFD32F2F) : const Color(0xFF5D8F67),
                 disabledBackgroundColor: Colors.grey[300],
                 foregroundColor: Colors.white,
@@ -176,10 +200,8 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
                   : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // تغییر آیکون بر اساس وضعیت
                   Icon(_isInGarden ? Icons.remove_circle_outline : Icons.add_circle_outline),
                   const SizedBox(width: 8),
-                  // تغییر متن بر اساس وضعیت
                   Text(
                     _isInGarden ? "حذف از باغچه من" : "افزودن به باغچه من",
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -193,6 +215,7 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
     );
   }
 
+  /// ساخت ویجت تصویر سربرگ
   Widget _buildHeaderImage(String? networkUrl) {
     if (!kIsWeb && widget.userImageFile != null) {
       return Image.file(File(widget.userImageFile!.path), fit: BoxFit.cover);
@@ -200,24 +223,42 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
       return Image.network(
         networkUrl,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          color: Colors.grey[300],
-          child: const Icon(Icons.broken_image),
-        ),
+        errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[300], child: const Icon(Icons.broken_image)),
       );
     }
     return Container(color: Colors.grey[300]);
   }
 
+  /// کارت وضعیت (مثل آبیاری - نور - دما)
   Widget _buildStatusCard({required String title, required String value, required IconData icon}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))]),
-      child: Row(children: [Icon(icon, color: const Color(0xFF5D8F67), size: 28), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)), const SizedBox(height: 4), Text(value, style: TextStyle(fontSize: 12, color: Colors.grey[500]))]))]),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [
+        BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2)),
+      ]),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF5D8F67), size: 28),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(value, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ]),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildExpandableTile(BuildContext context, {required String title, required String value, required IconData icon, bool isSimpleText = false}) {
+  /// تایل جمع‌شونده (ExpandableTile)
+  Widget _buildExpandableTile(
+      BuildContext context, {
+        required String title,
+        required String value,
+        required IconData icon,
+      }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
@@ -226,8 +267,12 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
         child: ExpansionTile(
           leading: Icon(icon, color: const Color(0xFF5D8F67)),
           title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          trailing: isSimpleText ? Text(value, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)) : const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
-          children: isSimpleText ? [] : [Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16), child: Text(value, style: TextStyle(fontSize: 13, height: 1.6, color: Colors.grey[700]), textAlign: TextAlign.justify))],
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Text(value, style: const TextStyle(fontSize: 13, height: 1.6, color: Colors.black87), textAlign: TextAlign.justify),
+            ),
+          ],
         ),
       ),
     );

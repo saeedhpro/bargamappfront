@@ -21,19 +21,21 @@ class _ChatPageState extends State<ChatPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  late ChatProvider _chatProvider; // ✅ نگه‌داری رفرنس امن Provider
+
   @override
   void initState() {
     super.initState();
 
-    Future.microtask(() async {
-      final chatProvider = context.read<ChatProvider>();
+    // گرفتن رفرنس Provider به صورت امن
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _chatProvider = context.read<ChatProvider>();
       final authProvider = context.read<AuthProvider>();
 
-      // ✅ ارسال userId به ChatProvider
-      chatProvider.setUserId(authProvider.userId);
-
-      await chatProvider.loadMessages(widget.conversationId);
-      chatProvider.connectWebSocket(widget.conversationId);
+      // تنظیم userId و اتصال WebSocket
+      _chatProvider.setUserId(authProvider.userId);
+      await _chatProvider.loadMessages(widget.conversationId);
+      _chatProvider.connectWebSocket(widget.conversationId);
 
       Future.delayed(const Duration(milliseconds: 200), _scrollToBottom);
     });
@@ -41,7 +43,8 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
-    context.read<ChatProvider>().disconnectWebSocket();
+    // ✅ بدون استفاده از context
+    _chatProvider.disconnectWebSocket();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -53,13 +56,11 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void _sendMessage() {
-    final provider = context.read<ChatProvider>();
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
-    provider.sendMessage(text);
+    _chatProvider.sendMessage(text);
     _controller.clear();
-
     Future.delayed(const Duration(milliseconds: 200), _scrollToBottom);
   }
 
@@ -103,8 +104,6 @@ class _ChatPageState extends State<ChatPage> {
                     }
 
                     final m = messages[index];
-
-                    // ✅ استفاده از sender_type جدید
                     final senderType = m["sender_type"] ?? m["sender"];
                     final isUser = senderType == "user";
 
@@ -140,7 +139,7 @@ class _ChatPageState extends State<ChatPage> {
                   child: TextField(
                     controller: _controller,
                     onChanged: (v) {
-                      context.read<ChatProvider>().sendTyping(v.isNotEmpty);
+                      _chatProvider.sendTyping(v.isNotEmpty);
                     },
                     decoration: const InputDecoration(
                       hintText: "پیام خود را بنویسید...",

@@ -3,6 +3,8 @@ class GardenPlant {
   final String plantName;
   final String nickname;
   final String? imagePath;
+  final String? diseases;
+  final String? pestControl;
   final Map<String, dynamic> details;
 
   GardenPlant({
@@ -10,6 +12,8 @@ class GardenPlant {
     required this.plantName,
     required this.nickname,
     this.imagePath,
+    this.diseases,
+    this.pestControl,
     required this.details,
   });
 
@@ -19,6 +23,8 @@ class GardenPlant {
       plantName: json['plant_name'] ?? '',
       nickname: json['nickname'] ?? '',
       imagePath: json['image_path'],
+      diseases: json['diseases'],
+      pestControl: json['pest_control'],
       details: json['details'] ?? {},
     );
   }
