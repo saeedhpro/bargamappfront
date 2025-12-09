@@ -120,7 +120,7 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.chat_outlined, color: Colors.white),
+            icon: const Icon(Icons.support_agent_outlined, color: Colors.white),
             onPressed: () {
               Navigator.push(
                 context,

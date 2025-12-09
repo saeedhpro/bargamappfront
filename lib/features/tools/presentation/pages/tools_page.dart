@@ -48,7 +48,7 @@ class _ToolsPageState extends State<ToolsPage> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.chat_outlined, color: Colors.grey),
+            icon: const Icon(Icons.support_agent_outlined, color: Colors.grey),
             onPressed: () => showModalBottomSheet(
               context: context,
               builder: (_) => const SupportBottomSheet(),
