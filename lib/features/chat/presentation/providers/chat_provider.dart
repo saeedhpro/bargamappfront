@@ -8,7 +8,7 @@ enum ChatListStatus { initial, loading, loaded, error }
 
 class ChatProvider extends ChangeNotifier {
   final HttpClient httpClient;
-  String? _currentUserId; // ✅ ذخیره userId
+  String? _currentUserId;
 
   ChatProvider({required this.httpClient});
 
@@ -86,6 +86,7 @@ class ChatProvider extends ChangeNotifier {
   int? get currentConversationId => _currentConversationId;
 
   Future<void> loadMessages(int id) async {
+    print("🔵 [loadMessages] Loading messages for conversation: $id");
     _loadingMessages = true;
     _currentConversationId = id;
     notifyListeners();
@@ -93,10 +94,11 @@ class ChatProvider extends ChangeNotifier {
     try {
       final data = await httpClient.get("/chat/messages/$id");
       _messages = List<Map<String, dynamic>>.from(data["messages"]);
+      print("✅ [loadMessages] Loaded ${_messages.length} messages");
     } catch (e) {
       _messages = [];
       _errorMessage = e.toString();
-      print("❌ Error loading messages: $e");
+      print("❌ [loadMessages] Error: $e");
     } finally {
       _loadingMessages = false;
       notifyListeners();
@@ -111,53 +113,66 @@ class ChatProvider extends ChangeNotifier {
 
   bool get isTyping => _supportTyping;
 
-  // ✅ متد جدید: دریافت userId از بیرون
   void setUserId(String? userId) {
+    print("🔵 [setUserId] Setting user ID: $userId");
     _currentUserId = userId;
   }
 
   void connectWebSocket(int conversationId) async {
+    print("🔵 [connectWebSocket] Starting connection for conversation: $conversationId");
+
     disconnectWebSocket();
 
     if (_currentUserId == null) {
-      print("❌ User ID not set. Call setUserId() first.");
+      print("❌ [connectWebSocket] User ID is NULL! Cannot connect.");
       return;
     }
 
-    final base = httpClient.baseUrl;
+    print("✅ [connectWebSocket] User ID verified: $_currentUserId");
 
-    // ✅ ارسال user_id به جای token
+    final base = httpClient.baseUrl;
     final wsUrl = "${base.replaceFirst("http", "ws")}/ws/chat/$conversationId?user_id=$_currentUserId";
 
-    print("🔗 Connecting to WebSocket: $wsUrl");
+    print("🔗 [connectWebSocket] WebSocket URL: $wsUrl");
 
     try {
+      print("⏳ [connectWebSocket] Attempting to connect...");
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      print("✅ [connectWebSocket] WebSocket channel created");
 
       _channel!.stream.listen(
             (event) {
+          print("📩 [WebSocket] RAW data received: $event");
+
           try {
             final data = jsonDecode(event);
-            print("📩 WebSocket received: $data");
+            print("📩 [WebSocket] Parsed data: $data");
 
             final type = data["type"];
+            print("📩 [WebSocket] Message type: $type");
 
             if (type == "message") {
               final msg = data["message"];
               if (msg != null) {
+                print("💬 [WebSocket] New message received: ${msg['id']} - ${msg['text']}");
                 final exists = _messages.any((m) => m["id"] == msg["id"]);
                 if (!exists) {
                   _messages.add(msg);
                   _messages.sort((a, b) => a["id"].compareTo(b["id"]));
+                  print("✅ [WebSocket] Message added to list. Total: ${_messages.length}");
                   notifyListeners();
+                } else {
+                  print("⚠️ [WebSocket] Message already exists, skipping");
                 }
               }
             } else if (type == "typing") {
+              print("⌨️ [WebSocket] Typing event: ${data['from']} - ${data['is_typing']}");
               if (data["from"] == "support" || data["from"] == "admin") {
                 _supportTyping = data["is_typing"] ?? false;
                 notifyListeners();
               }
             } else if (type == "seen") {
+              print("👁️ [WebSocket] Seen event: last_id=${data['last_id']}");
               final lastId = data["last_id"];
               if (lastId != null) {
                 for (var msg in _messages) {
@@ -169,34 +184,50 @@ class ChatProvider extends ChangeNotifier {
               }
             }
           } catch (e) {
-            print("❌ Error parsing WebSocket: $e");
+            print("❌ [WebSocket] Error parsing message: $e");
           }
         },
         onError: (error) {
-          print("❌ WebSocket error: $error");
+          print("❌ [WebSocket] Connection error: $error");
           _supportTyping = false;
           notifyListeners();
         },
         onDone: () {
-          print("✅ WebSocket closed");
+          print("🔴 [WebSocket] Connection closed");
           _supportTyping = false;
           notifyListeners();
         },
       );
+
+      print("✅ [connectWebSocket] WebSocket listener attached successfully");
     } catch (e) {
-      print("❌ Failed to connect WebSocket: $e");
+      print("❌ [connectWebSocket] Failed to connect: $e");
+      print("❌ [connectWebSocket] Error type: ${e.runtimeType}");
     }
   }
 
   void disconnectWebSocket() {
-    _channel?.sink.close();
-    _channel = null;
-    _supportTyping = false;
+    if (_channel != null) {
+      print("🔴 [disconnectWebSocket] Closing WebSocket connection");
+      _channel?.sink.close();
+      _channel = null;
+      _supportTyping = false;
+      print("✅ [disconnectWebSocket] WebSocket closed");
+    } else {
+      print("⚠️ [disconnectWebSocket] No active WebSocket to close");
+    }
   }
 
   void sendMessage(String text) {
+    print("📤 [sendMessage] Attempting to send message: '$text'");
+
     if (_channel == null) {
-      print("❌ WebSocket not connected");
+      print("❌ [sendMessage] WebSocket is NULL! Cannot send message.");
+      return;
+    }
+
+    if (_currentConversationId == null) {
+      print("❌ [sendMessage] Conversation ID is NULL!");
       return;
     }
 
@@ -206,44 +237,64 @@ class ChatProvider extends ChangeNotifier {
       "type": "text",
     });
 
-    print("📤 Sending: $message");
-    _channel!.sink.add(message);
+    print("📤 [sendMessage] JSON payload: $message");
+    print("📤 [sendMessage] Conversation ID: $_currentConversationId");
+    print("📤 [sendMessage] User ID: $_currentUserId");
+
+    try {
+      _channel!.sink.add(message);
+      print("✅ [sendMessage] Message sent successfully");
+    } catch (e) {
+      print("❌ [sendMessage] Error sending message: $e");
+    }
   }
 
   void sendTyping(bool isTyping) {
-    if (_channel == null) return;
+    if (_channel == null) {
+      print("⚠️ [sendTyping] WebSocket not connected, skipping typing event");
+      return;
+    }
 
-    _channel!.sink.add(jsonEncode({
+    final payload = jsonEncode({
       "action": "typing",
       "from": "user",
       "is_typing": isTyping,
-    }));
+    });
+
+    print("⌨️ [sendTyping] Sending typing status: $isTyping");
+    _channel!.sink.add(payload);
   }
 
   void markAsSeen(int lastMessageId) {
     if (_channel == null) return;
 
-    _channel!.sink.add(jsonEncode({
+    final payload = jsonEncode({
       "action": "seen",
       "last_message_id": lastMessageId,
-    }));
+    });
+
+    print("👁️ [markAsSeen] Marking message as seen: $lastMessageId");
+    _channel!.sink.add(payload);
   }
 
   Future<Map<String, dynamic>> startNewChat({String title = "سوال جدید"}) async {
+    print("🔵 [startNewChat] Creating new chat with title: $title");
     try {
       final data = await httpClient.post(
         "/chat/conversations",
         body: {"title": title},
       );
 
+      print("✅ [startNewChat] Chat created: ${data['conversation']}");
       return data["conversation"];
     } catch (e) {
-      print("❌ Error creating chat: $e");
+      print("❌ [startNewChat] Error: $e");
       rethrow;
     }
   }
 
   void clearMessages() {
+    print("🔵 [clearMessages] Clearing all messages");
     _messages.clear();
     _currentConversationId = null;
     notifyListeners();
@@ -251,6 +302,7 @@ class ChatProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    print("🔴 [dispose] ChatProvider disposing");
     disconnectWebSocket();
     super.dispose();
   }
