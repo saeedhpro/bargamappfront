@@ -107,6 +107,21 @@ class _HistoryPlantDetailsPageState extends State<HistoryPlantDetailsPage> {
     }
   }
 
+  // ✅ تابع کمکی برای تبدیل امن انواع داده
+  String _formatValue(dynamic value) {
+    if (value == null) return 'موجود نیست';
+    if (value is String) return value;
+    if (value is Map) {
+      return value.entries
+          .map((e) => '${e.key}: ${e.value}')
+          .join('\n');
+    }
+    if (value is List) {
+      return value.map((item) => '• $item').join('\n');
+    }
+    return value.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final details = widget.plant.details;
@@ -125,6 +140,10 @@ class _HistoryPlantDetailsPageState extends State<HistoryPlantDetailsPage> {
     final nameFa = details['name_fa'] ?? commonName;
     final lightDetail = details['light_detail'] ?? 'اطلاعات دقیق موجود نیست';
     final fertilizer = details['fertilizer'] ?? 'کود عمومی';
+
+    // ✅ استخراج فیلدهای سلامت گیاه
+    final diseases = details['diseases'];
+    final pestControl = details['pest_control'];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -145,6 +164,8 @@ class _HistoryPlantDetailsPageState extends State<HistoryPlantDetailsPage> {
             waterDetail: waterDetail,
             fertilizer: fertilizer,
             lightDetail: lightDetail,
+            diseases: diseases,
+            pestControl: pestControl,
           ),
 
           _buildActionButton(),
@@ -217,6 +238,8 @@ class _HistoryPlantDetailsPageState extends State<HistoryPlantDetailsPage> {
     required String waterDetail,
     required String fertilizer,
     required String lightDetail,
+    dynamic diseases,
+    dynamic pestControl,
   }) {
     return Positioned.fill(
       top: 220,
@@ -274,6 +297,22 @@ class _HistoryPlantDetailsPageState extends State<HistoryPlantDetailsPage> {
               _buildExpandableTile("نحوه آبیاری", waterDetail, Icons.water_drop),
               _buildExpandableTile("کود مناسب", fertilizer, Icons.spa_outlined),
               _buildExpandableTile("جزئیات نور", lightDetail, Icons.light_mode_outlined),
+
+              // ✅ نمایش بیماری‌ها
+              if (diseases != null)
+                _buildExpandableTile(
+                  "بیماری‌ها و مشکلات",
+                  _formatValue(diseases),
+                  Icons.healing_outlined,
+                ),
+
+              // ✅ نمایش کنترل آفات
+              if (pestControl != null)
+                _buildExpandableTile(
+                  "کنترل آفات",
+                  _formatValue(pestControl),
+                  Icons.bug_report_outlined,
+                ),
             ],
           ),
         ),
