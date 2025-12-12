@@ -1,3 +1,4 @@
+import 'package:bargam_app/features/chat/widgets/new_chat_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bargam_app/features/chat/presentation/providers/chat_provider.dart';
@@ -15,9 +16,10 @@ class _ChatListPageState extends State<ChatListPage> {
   void initState() {
     super.initState();
 
-    // ✅ استفاده از addPostFrameCallback
     WidgetsBinding.instance.addPostFrameCallback((_) {
       loadList();
+      // بارگذاری دپارتمان‌ها
+      context.read<ChatProvider>().loadDepartments();
     });
   }
 
@@ -26,25 +28,70 @@ class _ChatListPageState extends State<ChatListPage> {
     await provider.loadConversations(refresh: true);
   }
 
-  Future<void> newChat() async {
+  /// نمایش مودال ایجاد چت جدید
+  /// نمایش مودال ایجاد چت جدید
+  Future<void> showNewChatDialog() async {
     final provider = context.read<ChatProvider>();
 
-    final conv = await provider.startNewChat();
-
-    final convId = conv["id"];
-    final title = conv["title"] ?? "مکالمه جدید";
-
-    await provider.loadConversations(refresh: true);
+    // بررسی اینکه دپارتمان‌ها لود شده‌اند یا خیر
+    if (provider.departments.isEmpty && !provider.departmentsLoading) {
+      await provider.loadDepartments();
+    }
 
     if (!mounted) return;
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChatPage(
-          conversationId: convId,
-          title: title,
-        ),
+    // نمایش مودال
+    await showDialog(
+      context: context,
+      barrierDismissible: false, // ✅ جلوگیری از بسته شدن با کلیک بیرون
+      builder: (dialogContext) => NewChatModal(
+        departments: provider.departments,
+        onCreateChat: (title, departmentId) async {
+          try {
+            debugPrint("🔵 Creating new chat...");
+
+            // ایجاد چت جدید
+            final conv = await provider.startNewChat(
+              title: title,
+              departmentId: departmentId,
+            );
+
+            final convId = conv["id"];
+            final convTitle = conv["title"] ?? "مکالمه جدید";
+
+            debugPrint("✅ Chat created: $convId");
+
+            // ✅ اول مودال رو ببند (از dialogContext استفاده کن)
+            if (dialogContext.mounted) {
+              Navigator.of(dialogContext).pop();
+            }
+
+            // ✅ رفرش لیست
+            await provider.loadConversations(refresh: true);
+
+            // ✅ بعد بره صفحه چت (از context اصلی استفاده کن)
+            if (mounted) {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatPage(
+                    conversationId: convId,
+                    title: convTitle,
+                  ),
+                ),
+              );
+            }
+          } catch (e) {
+            debugPrint("❌ Error creating chat: $e");
+
+            // نمایش پیام خطا
+            if (dialogContext.mounted) {
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                SnackBar(content: Text('خطا در ایجاد چت: $e')),
+              );
+            }
+          }
+        },
       ),
     );
   }
@@ -54,17 +101,19 @@ class _ChatListPageState extends State<ChatListPage> {
     final provider = context.watch<ChatProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text("پشتیبانی")),
+      appBar: AppBar(
+        title: const Text("پشتیبانی"),
+        elevation: 1,
+      ),
       body: _buildBody(provider),
       floatingActionButton: FloatingActionButton(
-        onPressed: newChat,
+        onPressed: showNewChatDialog,
         child: const Icon(Icons.add_comment),
       ),
     );
   }
 
   Widget _buildBody(ChatProvider provider) {
-    // ✅ نمایش بر اساس وضعیت
     if (provider.status == ChatListStatus.loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -105,10 +154,8 @@ class _ChatListPageState extends State<ChatListPage> {
       child: ListView.builder(
         itemCount: provider.conversations.length + (provider.hasMore ? 1 : 0),
         itemBuilder: (context, index) {
-          // ✅ نمایش لودینگ در انتهای لیست
           if (index == provider.conversations.length) {
             if (!provider.isLoadingMore) {
-              // بارگذاری خودکار صفحه بعدی
               Future.microtask(() => provider.loadConversations());
             }
             return const Center(
@@ -120,10 +167,28 @@ class _ChatListPageState extends State<ChatListPage> {
           }
 
           final c = provider.conversations[index];
+          final department = c["department"];
 
           return ListTile(
             title: Text(c["title"] ?? "بدون عنوان"),
-            subtitle: Text(c["last_message"]?["text"] ?? "بدون پیام"),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (department != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      "📁 ${department['name']}",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                Text(c["last_message"]?["text"] ?? "بدون پیام"),
+              ],
+            ),
             trailing: c["unread_count"] != null && c["unread_count"] > 0
                 ? CircleAvatar(
               radius: 12,

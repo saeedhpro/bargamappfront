@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:bargam_app/core/network/http_client.dart';
+import 'package:bargam_app/features/chat/presentation/models/department.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -9,6 +10,7 @@ enum ChatListStatus { initial, loading, loaded, error }
 class ChatProvider extends ChangeNotifier {
   final HttpClient httpClient;
   String? _currentUserId;
+  bool _isDisposed = false;  // ✅ اضافه شد
 
   ChatProvider({required this.httpClient});
 
@@ -29,6 +31,46 @@ class ChatProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
+
+  // ========================
+  // دپارتمان‌ها
+  // ========================
+  List<Department> _departments = [];
+  List<Department> get departments => _departments;
+  bool _departmentsLoading = false;
+  bool get departmentsLoading => _departmentsLoading;
+
+  /// بارگذاری لیست دپارتمان‌ها
+  Future<void> loadDepartments() async {
+    if (_departmentsLoading) return;
+
+    _departmentsLoading = true;
+    notifyListeners();
+
+    try {
+      final data = await httpClient.get('/departments');
+
+      if (data is List) {
+        _departments = data.map((json) => Department.fromJson(json)).toList();
+      } else if (data is Map && data.containsKey('departments')) {
+        _departments = (data['departments'] as List)
+            .map((json) => Department.fromJson(json))
+            .toList();
+      } else {
+        debugPrint('⚠️ Unexpected departments response format');
+        _departments = [];
+      }
+
+      debugPrint('✅ Loaded ${_departments.length} departments');
+    } catch (e) {
+      debugPrint('❌ Error loading departments: $e');
+      _departments = [];
+      rethrow;
+    } finally {
+      _departmentsLoading = false;
+      notifyListeners();
+    }
+  }
 
   Future<void> loadConversations({bool refresh = false}) async {
     if (refresh) {
@@ -62,7 +104,7 @@ class ChatProvider extends ChangeNotifier {
     } catch (e) {
       _status = ChatListStatus.error;
       _errorMessage = e.toString();
-      print("❌ Error loading conversations: $e");
+      debugPrint("❌ Error loading conversations: $e");
     } finally {
       _isLoadingMore = false;
       notifyListeners();
@@ -80,25 +122,56 @@ class ChatProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _messages = [];
   bool _loadingMessages = false;
   int? _currentConversationId;
+  Map<String, dynamic>? _currentConversation;
 
   List<Map<String, dynamic>> get messages => _messages;
   bool get loadingMessages => _loadingMessages;
   int? get currentConversationId => _currentConversationId;
+  Map<String, dynamic>? get currentConversation => _currentConversation;
+  String? get userId => _currentUserId;
 
   Future<void> loadMessages(int id) async {
-    print("🔵 [loadMessages] Loading messages for conversation: $id");
+    debugPrint("🔵 [loadMessages] Loading messages for conversation: $id");
     _loadingMessages = true;
     _currentConversationId = id;
     notifyListeners();
 
     try {
       final data = await httpClient.get("/chat/messages/$id");
-      _messages = List<Map<String, dynamic>>.from(data["messages"]);
-      print("✅ [loadMessages] Loaded ${_messages.length} messages");
+
+      debugPrint("📦 [loadMessages] Raw response: $data");
+
+      if (data is Map && data.containsKey("messages")) {
+        final messagesData = data["messages"];
+
+        if (messagesData is Map) {
+          _currentConversation = messagesData["conversation"];
+
+          if (messagesData.containsKey("messages") && messagesData["messages"] is List) {
+            _messages = List<Map<String, dynamic>>.from(messagesData["messages"]);
+          } else {
+            _messages = [];
+          }
+
+          debugPrint("✅ [loadMessages] Conversation: ${_currentConversation?['title']}");
+          debugPrint("✅ [loadMessages] Department: ${_currentConversation?['department']?['name']}");
+          debugPrint("✅ [loadMessages] Messages count: ${_messages.length}");
+        } else {
+          debugPrint("⚠️ [loadMessages] messagesData is not a Map");
+          _messages = [];
+          _currentConversation = null;
+        }
+      } else {
+        debugPrint("⚠️ [loadMessages] Unexpected response format");
+        _messages = [];
+        _currentConversation = null;
+      }
+
     } catch (e) {
       _messages = [];
+      _currentConversation = null;
       _errorMessage = e.toString();
-      print("❌ [loadMessages] Error: $e");
+      debugPrint("❌ [loadMessages] Error: $e");
     } finally {
       _loadingMessages = false;
       notifyListeners();
@@ -114,65 +187,67 @@ class ChatProvider extends ChangeNotifier {
   bool get isTyping => _supportTyping;
 
   void setUserId(String? userId) {
-    print("🔵 [setUserId] Setting user ID: $userId");
+    debugPrint("🔵 [setUserId] Setting user ID: $userId");
     _currentUserId = userId;
   }
 
   void connectWebSocket(int conversationId) async {
-    print("🔵 [connectWebSocket] Starting connection for conversation: $conversationId");
+    debugPrint("🔵 [connectWebSocket] Starting connection for conversation: $conversationId");
 
     disconnectWebSocket();
 
     if (_currentUserId == null) {
-      print("❌ [connectWebSocket] User ID is NULL! Cannot connect.");
+      debugPrint("❌ [connectWebSocket] User ID is NULL! Cannot connect.");
       return;
     }
 
-    print("✅ [connectWebSocket] User ID verified: $_currentUserId");
+    debugPrint("✅ [connectWebSocket] User ID verified: $_currentUserId");
 
     final base = httpClient.baseUrl;
     final wsUrl = "${base.replaceFirst("http", "ws")}/ws/chat/$conversationId?user_id=$_currentUserId";
 
-    print("🔗 [connectWebSocket] WebSocket URL: $wsUrl");
+    debugPrint("🔗 [connectWebSocket] WebSocket URL: $wsUrl");
 
     try {
-      print("⏳ [connectWebSocket] Attempting to connect...");
+      debugPrint("⏳ [connectWebSocket] Attempting to connect...");
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-      print("✅ [connectWebSocket] WebSocket channel created");
+      debugPrint("✅ [connectWebSocket] WebSocket channel created");
 
       _channel!.stream.listen(
             (event) {
-          print("📩 [WebSocket] RAW data received: $event");
+          if (_isDisposed) return;  // ✅ چک dispose
+
+          debugPrint("📩 [WebSocket] RAW data received: $event");
 
           try {
             final data = jsonDecode(event);
-            print("📩 [WebSocket] Parsed data: $data");
+            debugPrint("📩 [WebSocket] Parsed data: $data");
 
             final type = data["type"];
-            print("📩 [WebSocket] Message type: $type");
+            debugPrint("📩 [WebSocket] Message type: $type");
 
             if (type == "message") {
               final msg = data["message"];
               if (msg != null) {
-                print("💬 [WebSocket] New message received: ${msg['id']} - ${msg['text']}");
+                debugPrint("💬 [WebSocket] New message received: ${msg['id']} - ${msg['text']}");
                 final exists = _messages.any((m) => m["id"] == msg["id"]);
                 if (!exists) {
                   _messages.add(msg);
                   _messages.sort((a, b) => a["id"].compareTo(b["id"]));
-                  print("✅ [WebSocket] Message added to list. Total: ${_messages.length}");
+                  debugPrint("✅ [WebSocket] Message added to list. Total: ${_messages.length}");
                   notifyListeners();
                 } else {
-                  print("⚠️ [WebSocket] Message already exists, skipping");
+                  debugPrint("⚠️ [WebSocket] Message already exists, skipping");
                 }
               }
             } else if (type == "typing") {
-              print("⌨️ [WebSocket] Typing event: ${data['from']} - ${data['is_typing']}");
+              debugPrint("⌨️ [WebSocket] Typing event: ${data['from']} - ${data['is_typing']}");
               if (data["from"] == "support" || data["from"] == "admin") {
                 _supportTyping = data["is_typing"] ?? false;
                 notifyListeners();
               }
             } else if (type == "seen") {
-              print("👁️ [WebSocket] Seen event: last_id=${data['last_id']}");
+              debugPrint("👁️ [WebSocket] Seen event: last_id=${data['last_id']}");
               final lastId = data["last_id"];
               if (lastId != null) {
                 for (var msg in _messages) {
@@ -184,50 +259,57 @@ class ChatProvider extends ChangeNotifier {
               }
             }
           } catch (e) {
-            print("❌ [WebSocket] Error parsing message: $e");
+            debugPrint("❌ [WebSocket] Error parsing message: $e");
           }
         },
         onError: (error) {
-          print("❌ [WebSocket] Connection error: $error");
+          if (_isDisposed) return;  // ✅ چک dispose
+          debugPrint("❌ [WebSocket] Connection error: $error");
           _supportTyping = false;
           notifyListeners();
         },
         onDone: () {
-          print("🔴 [WebSocket] Connection closed");
+          if (_isDisposed) return;  // ✅ چک dispose
+          debugPrint("🔴 [WebSocket] Connection closed");
           _supportTyping = false;
           notifyListeners();
         },
       );
 
-      print("✅ [connectWebSocket] WebSocket listener attached successfully");
+      debugPrint("✅ [connectWebSocket] WebSocket listener attached successfully");
     } catch (e) {
-      print("❌ [connectWebSocket] Failed to connect: $e");
-      print("❌ [connectWebSocket] Error type: ${e.runtimeType}");
+      debugPrint("❌ [connectWebSocket] Failed to connect: $e");
+      debugPrint("❌ [connectWebSocket] Error type: ${e.runtimeType}");
     }
   }
 
   void disconnectWebSocket() {
     if (_channel != null) {
-      print("🔴 [disconnectWebSocket] Closing WebSocket connection");
+      debugPrint("🔴 [disconnectWebSocket] Closing WebSocket connection");
       _channel?.sink.close();
       _channel = null;
       _supportTyping = false;
-      print("✅ [disconnectWebSocket] WebSocket closed");
+      debugPrint("✅ [disconnectWebSocket] WebSocket closed");
+
+      // ✅ فقط در صورتی notifyListeners صدا بزن که dispose نشده باشیم
+      if (!_isDisposed) {
+        notifyListeners();
+      }
     } else {
-      print("⚠️ [disconnectWebSocket] No active WebSocket to close");
+      debugPrint("⚠️ [disconnectWebSocket] No active WebSocket to close");
     }
   }
 
   void sendMessage(String text) {
-    print("📤 [sendMessage] Attempting to send message: '$text'");
+    debugPrint("📤 [sendMessage] Attempting to send message: '$text'");
 
     if (_channel == null) {
-      print("❌ [sendMessage] WebSocket is NULL! Cannot send message.");
+      debugPrint("❌ [sendMessage] WebSocket is NULL! Cannot send message.");
       return;
     }
 
     if (_currentConversationId == null) {
-      print("❌ [sendMessage] Conversation ID is NULL!");
+      debugPrint("❌ [sendMessage] Conversation ID is NULL!");
       return;
     }
 
@@ -237,23 +319,18 @@ class ChatProvider extends ChangeNotifier {
       "type": "text",
     });
 
-    print("📤 [sendMessage] JSON payload: $message");
-    print("📤 [sendMessage] Conversation ID: $_currentConversationId");
-    print("📤 [sendMessage] User ID: $_currentUserId");
+    debugPrint("📤 [sendMessage] JSON payload: $message");
 
     try {
       _channel!.sink.add(message);
-      print("✅ [sendMessage] Message sent successfully");
+      debugPrint("✅ [sendMessage] Message sent successfully");
     } catch (e) {
-      print("❌ [sendMessage] Error sending message: $e");
+      debugPrint("❌ [sendMessage] Error sending message: $e");
     }
   }
 
   void sendTyping(bool isTyping) {
-    if (_channel == null) {
-      print("⚠️ [sendTyping] WebSocket not connected, skipping typing event");
-      return;
-    }
+    if (_channel == null) return;
 
     final payload = jsonEncode({
       "action": "typing",
@@ -261,7 +338,6 @@ class ChatProvider extends ChangeNotifier {
       "is_typing": isTyping,
     });
 
-    print("⌨️ [sendTyping] Sending typing status: $isTyping");
     _channel!.sink.add(payload);
   }
 
@@ -273,36 +349,45 @@ class ChatProvider extends ChangeNotifier {
       "last_message_id": lastMessageId,
     });
 
-    print("👁️ [markAsSeen] Marking message as seen: $lastMessageId");
+    debugPrint("👁️ [markAsSeen] Marking message as seen: $lastMessageId");
     _channel!.sink.add(payload);
   }
 
-  Future<Map<String, dynamic>> startNewChat({String title = "سوال جدید"}) async {
-    print("🔵 [startNewChat] Creating new chat with title: $title");
+  Future<Map<String, dynamic>> startNewChat({
+    String title = "سوال جدید",
+    required int departmentId,
+  }) async {
+    debugPrint("🔵 [startNewChat] Creating chat: title=$title, dept=$departmentId");
+
     try {
       final data = await httpClient.post(
         "/chat/conversations",
-        body: {"title": title},
+        body: {
+          "title": title,
+          "department_id": departmentId,
+        },
       );
 
-      print("✅ [startNewChat] Chat created: ${data['conversation']}");
+      debugPrint("✅ [startNewChat] Chat created: ${data['conversation']}");
       return data["conversation"];
     } catch (e) {
-      print("❌ [startNewChat] Error: $e");
+      debugPrint("❌ [startNewChat] Error: $e");
       rethrow;
     }
   }
 
   void clearMessages() {
-    print("🔵 [clearMessages] Clearing all messages");
+    debugPrint("🔵 [clearMessages] Clearing all messages");
     _messages.clear();
     _currentConversationId = null;
+    _currentConversation = null;
     notifyListeners();
   }
 
   @override
   void dispose() {
-    print("🔴 [dispose] ChatProvider disposing");
+    debugPrint("🔴 [dispose] ChatProvider disposing");
+    _isDisposed = true;  // ✅ علامت‌گذاری به عنوان disposed
     disconnectWebSocket();
     super.dispose();
   }

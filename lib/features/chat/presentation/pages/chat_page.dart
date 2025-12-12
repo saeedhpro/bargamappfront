@@ -26,26 +26,26 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
-    print("🔵 [ChatPage] initState - Conversation: ${widget.conversationId}");
+    debugPrint("🔵 [ChatPage] initState - Conversation: ${widget.conversationId}");
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      print("🔵 [ChatPage] PostFrameCallback started");
+      debugPrint("🔵 [ChatPage] PostFrameCallback started");
 
       _chatProvider = context.read<ChatProvider>();
       final authProvider = context.read<AuthProvider>();
 
-      print("🔵 [ChatPage] Auth userId: ${authProvider.userId}");
-      print("🔵 [ChatPage] Setting userId in ChatProvider...");
+      debugPrint("🔵 [ChatPage] Auth userId: ${authProvider.userId}");
+      debugPrint("🔵 [ChatPage] Setting userId in ChatProvider...");
 
       _chatProvider.setUserId(authProvider.userId);
 
-      print("🔵 [ChatPage] Loading messages...");
+      debugPrint("🔵 [ChatPage] Loading messages...");
       await _chatProvider.loadMessages(widget.conversationId);
 
-      print("🔵 [ChatPage] Connecting WebSocket...");
+      debugPrint("🔵 [ChatPage] Connecting WebSocket...");
       _chatProvider.connectWebSocket(widget.conversationId);
 
-      print("✅ [ChatPage] Initialization complete");
+      debugPrint("✅ [ChatPage] Initialization complete");
 
       Future.delayed(const Duration(milliseconds: 200), _scrollToBottom);
     });
@@ -53,7 +53,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
-    print("🔴 [ChatPage] dispose called");
+    debugPrint("🔴 [ChatPage] dispose called");
     _chatProvider.disconnectWebSocket();
     _controller.dispose();
     _scrollController.dispose();
@@ -62,27 +62,27 @@ class _ChatPageState extends State<ChatPage> {
 
   void _scrollToBottom() {
     if (!_scrollController.hasClients) {
-      print("⚠️ [_scrollToBottom] ScrollController has no clients");
+      debugPrint("⚠️ [_scrollToBottom] ScrollController has no clients");
       return;
     }
-    print("📜 [_scrollToBottom] Scrolling to bottom");
+    debugPrint("📜 [_scrollToBottom] Scrolling to bottom");
     _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
   }
 
   void _sendMessage() {
     final text = _controller.text.trim();
-    print("📤 [_sendMessage] Button pressed. Text: '$text'");
+    debugPrint("📤 [_sendMessage] Button pressed. Text: '$text'");
 
     if (text.isEmpty) {
-      print("⚠️ [_sendMessage] Empty message, ignoring");
+      debugPrint("⚠️ [_sendMessage] Empty message, ignoring");
       return;
     }
 
-    print("📤 [_sendMessage] Calling provider.sendMessage()");
+    debugPrint("📤 [_sendMessage] Calling provider.sendMessage()");
     _chatProvider.sendMessage(text);
 
     _controller.clear();
-    print("✅ [_sendMessage] Message sent, input cleared");
+    debugPrint("✅ [_sendMessage] Message sent, input cleared");
 
     Future.delayed(const Duration(milliseconds: 200), _scrollToBottom);
   }
@@ -105,48 +105,83 @@ class _ChatPageState extends State<ChatPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                print("🔄 [build] Rendering ${messages.length} messages");
+                debugPrint("🔄 [build] Rendering ${messages.length} messages");
 
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length + (provider.isTyping ? 1 : 0),
                   itemBuilder: (context, index) {
-                    if (provider.isTyping && index == messages.length) {
-                      return Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 8, horizontal: 14),
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(12),
+                    if (index == messages.length && provider.isTyping) {
+                      return const Align(
+                        alignment: Alignment.centerRight,
+                        child: Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                "پشتیبان در حال تایپ است...",
+                                style: TextStyle(
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ],
                           ),
-                          child: const Text("پشتیبانی در حال نوشتن..."),
                         ),
                       );
                     }
 
-                    final m = messages[index];
-                    final senderType = m["sender_type"] ?? m["sender"];
-                    final isUser = senderType == "user";
+                    final msg = messages[index];
+                    final isMe = msg["sender_type"] == "user";
 
                     return Align(
-                      alignment:
-                      isUser ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: isMe ? Alignment.centerLeft : Alignment.centerRight,
                       child: Container(
-                        padding: const EdgeInsets.all(12),
                         margin: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isUser
-                              ? Colors.green.shade100
-                              : Colors.grey.shade200,
+                          color: isMe ? Colors.blue : Colors.grey.shade300,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          m["text"] ?? "",
-                          style: const TextStyle(fontSize: 15),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              msg["text"] ?? "",
+                              style: TextStyle(
+                                color: isMe ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _formatTime(msg["created_at"]),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isMe ? Colors.white70 : Colors.black54,
+                                  ),
+                                ),
+                                if (isMe && msg["is_seen"] == true) ...[
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.done_all,
+                                    size: 14,
+                                    color: Colors.white70,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -155,30 +190,51 @@ class _ChatPageState extends State<ChatPage> {
               },
             ),
           ),
-
           Container(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.shade300,
+                  blurRadius: 4,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _controller,
-                    onChanged: (v) {
-                      _chatProvider.sendTyping(v.isNotEmpty);
-                    },
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: "پیام خود را بنویسید...",
-                      border: OutlineInputBorder(),
-                      contentPadding:
-                      EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                     ),
+                    maxLines: null,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendMessage(),
+                    onChanged: (text) {
+                      _chatProvider.sendTyping(text.isNotEmpty);
+                    },
                   ),
                 ),
                 const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.send),
-                  color: Colors.green,
-                  onPressed: _sendMessage,
+                CircleAvatar(
+                  backgroundColor: Colors.blue,
+                  child: IconButton(
+                    icon: const Icon(Icons.send, color: Colors.white),
+                    onPressed: _sendMessage,
+                  ),
                 ),
               ],
             ),
@@ -186,5 +242,15 @@ class _ChatPageState extends State<ChatPage> {
         ],
       ),
     );
+  }
+
+  String _formatTime(String? timestamp) {
+    if (timestamp == null) return "";
+    try {
+      final dt = DateTime.parse(timestamp).toLocal();
+      return "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+    } catch (e) {
+      return "";
+    }
   }
 }
