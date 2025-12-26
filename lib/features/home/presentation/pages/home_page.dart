@@ -1,5 +1,6 @@
 import 'package:bargam_app/features/auth/presentation/providers/auth_provider.dart';
 import 'package:bargam_app/features/chat/presentation/pages/chat_list_page.dart';
+import 'package:bargam_app/features/home/presentation/widgets/plant_filter_drawer.dart';
 import 'package:bargam_app/features/tools/presentation/widgets/support_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +20,7 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
   @override
   bool get wantKeepAlive => false;
 
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _scrollController = ScrollController();
   bool _hasLoadedOnce = false;
 
@@ -102,7 +104,9 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
     final user = authProvider.user;
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: const Color(0xFFF5F5F5),
+      drawer: const PlantFilterDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.green,
         title: Column(
@@ -179,6 +183,9 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
                 const SizedBox(height: 20),
                 SearchBarWidget(
                   onChanged: _onSearchChanged, // ✅ استفاده از متد جدید
+                  onFilterTap: () {
+                    _scaffoldKey.currentState?.openDrawer();
+                  },
                 ),
               ],
             ),
